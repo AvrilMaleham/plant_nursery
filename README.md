@@ -1,65 +1,90 @@
-# plant_nursery
+# Plant Nursery System
 
-Create a README.md file explaining how your design reflects and supports the requirements
-described in Brent's notes, including any assumptions you made where the notes did not
-specify enough detail. Any format and structure is acceptable, as long as the explanation is
-clear and your design decisions are justified
+## Overview
 
-PLANT:
-no new categories will be added at this moment
-same name does not equal same price
-assuming a name will be given and data types will be correct for now
-how do we generate the ID - UUID cos easier
-assuming only attribute stock and price can be changed
+This is a plant nursery management system that tracks plants, customers, and orders. The design is based on Brent's notes outlining what the nursery needs for its day to day operations.
 
-Included this even though we have the plant_list getter just to be explicit that there is a method to print each plant in the list so we dont need the print statement in the driver for this
+## Design Decisions
 
-CUSTOMER:
-how do we generate the ID - UUID cos easier
-Assuming Customer details are not updated after creation
+### Separation of Concerns
 
-Included this even though we have the plant_list getter just to be explicit that there is a method to print each plant in the list so we dont need the print statement in the driver for this
+I kept all the classes in separate files for a true separation of concerns. Each entity (`Plant`, `Customer`, `Order`) has its own class, and each collection (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has its own class. I then created a `NurserySystem` manager class so the driver only needs to talk to one object. This ensures that order creation only happens for customers and plants that are registered in the system, and the order history is updated automatically to avoid mistakes.
 
-ORDER:
-Assuming there will be no new statuses for now
-Assuming we don't need to do any date manipulation for now so date is saved as string, not date for simplicity
-Assuming only status can be changed once an Order object is created
+### Display Methods on Collection Classes
 
-I kept all the classes separate for a true separation of concerns. then i created the nursery system manager in order to have the collection objects all in one place so the driver only needs to talk to one collection object and we can be sure that order creation only happens for customers and plants that are in the system, then it updates the order history too to avoid mistakes.
+Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has a `display_all` method even though a getter for the list already exists. This keeps the print logic inside the class rather than requiring a loop in the driver, which is cleaner and more reusable.
 
-project covers the following:
-each order to be for one type of plant.
-classes, objects, encapsulation, overloading, and getters and setters
+## Assumptions
 
-The system needs to know exactly how much stock we have for each plant,
-For each plant, we currently keep track of an ID, since we have had two batches of the same plant come in at different times and just going by name gets confusing.
-We also note the name, the category (trees and shrubs, perennials, pot plants, or vegetable seedlings), the price, and the stock level.
-we need to be able to add new plants without accidentally adding the same one twice
-see lists of what plants are available
-and another time a plant's price got written down as a negative number by mistake and sat there until a customer pointed it out.
+### Plant
 
-Customers are trickier. We have had two people with the same name before, so we really need something that tells them apart, a customer ID.
-We also need their name and either an email address or phone number, in case we need to get in touch about an order.
-we need to be able to add new customers without accidentally adding the same one twice
-see who our customers are
+- No new categories will be added at this time, the four categories are fixed using a `Literal` type.
+- Same plant name does not mean same price, two batches of the same plant can come in at different prices, which is why each plant has its own ID.
+- A name will always be given and data types will be correct for now (no validation on inputs beyond what the type hints describe).
+- IDs are generated using UUID for simplicity.
+- Only stock and price can be changed once a `Plant` object is created, name and category are read only.
 
-we actually need to know for each order is which customer it is for, which plant it is for, how many they ordered, when they ordered it, dates written as DD-MM-YYYY same as everything else around here, the current status (pending, collected, or cancelled), and the order total.
-Each order is just for one type of plant at a time, if someone wants two different plants, we treat that as two separate orders.
-If someone orders ten or more of the same plant type in one order, the order total should have a ten percent discount applied
-How they actually settle the order is not something we need the system to track yet.
-someone once wrote down an order for zero plants by mistake, and it just sat there in the book looking like a real order,
-When an order does go through, the stock on hand needs to go down straight away,
-and it should never be allowed to go below zero.
-An order can be cancelled and the stock returned to what is available, but only while it is still pending. Once it has been collected, it can no longer be cancelled.
-We should also be able to check whether a specific plant has enough stock before someone orders it, and it needs to stop an order going through if there is not enough.
+### Customer
 
-pull up a customer's order history when we need it,
-see every order we have got on record,
+- IDs are generated using UUID for simplicity.
+- Customer details (name, email, phone) are not updated after creation, only getters are provided, no setters.
 
-Each class must have:
-• An initialiser that sets up an object's attributes.
-• Private data members.
-• Methods specific to the class.
-• Getters and setters, and
-an overloaded method for a readable string representation of an object, where appropriate. 2. Include docstrings for every class and method. 3. Use type hints for all method parameters and return values. 4. Add comments where relevant.
-error conditions
+### Order
+
+- No new statuses will be added at this time, the three statuses are fixed using a `Literal` type.
+- No date manipulation is needed for now, so the order date is stored as a string in DD-MM-YYYY format rather than a `date` object for simplicity.
+- Only the status can change once an `Order` object is created, all other fields are read only. Status changes go through `collect_order()` and `cancel_order()` methods rather than a setter, for more control over the business rules.
+
+## Requirements Covered from Brent's Notes
+
+### Plant Requirements
+
+- Each plant tracked by a unique ID (since two batches of the same plant can come in at different times) — `Plant` uses UUID as the ID
+- Plant name is recorded — `plant_name` attribute
+- Plant category is one of: trees and shrubs, perennials, pot plants, or vegetable seedlings — enforced by the `PlantCategory` Literal type
+- Plant price is recorded — `plant_price` attribute
+- Plant stock level is tracked — `plant_stock` attribute
+- Price cannot be negative (or zero) — validated in `__init__` and the `plant_price` setter, raises `ValueError`
+- Stock cannot go below zero — validated in `__init__`, `plant_stock` setter, and `reduce_stock()`, raises `ValueError`
+- Can add new plants without accidentally adding the same one twice — `PlantCatalog.catalog_plant()` checks for duplicate IDs before adding
+- Can see a list of all plants available — `PlantCatalog.display_all_plants()` and `NurserySystem.display_all_plants()`
+
+### Customer Requirements
+
+- Customers each have a unique ID (since two customers can share the same name) — `Customer` uses UUID as the ID
+- Customer name is recorded — `cust_name` attribute
+- At least an email address or phone number is required — validated in `__init__`, raises `ValueError` if neither is provided
+- Can add new customers without accidentally adding the same one twice — `CustomerDirectory.add_customer()` checks for duplicate IDs before adding
+- Can see a list of all customers — `CustomerDirectory.display_all_customers()` and `NurserySystem.display_all_customers()`
+
+### Order Requirements
+
+- Each order records: customer, plant, quantity, date (DD-MM-YYYY), status, and order total — all stored as attributes on `Order`
+- Each order is for one type of plant only — each `Order` object holds a single `Plant` reference
+- 10% discount applied when ordering 10 or more of the same plant — handled in `__calculate_total()`
+- Orders for zero (or fewer) plants are rejected — validated in `__init__`, raises `ValueError` if quantity < 1
+- Stock is reduced immediately when an order is placed — `plant.reduce_stock(quantity)` is called in `Order.__init__`
+- Stock can never go below zero — `check_stock()` and `reduce_stock()` enforce this before the order is created
+- An order can only be cancelled while it is still pending — `cancel_order()` raises `ValueError` if status is "collected" or already "cancelled"
+- Cancelling a pending order restores the stock — `cancel_order()` calls `plant.restore_stock(quantity)`
+- Once collected, an order can no longer be cancelled — enforced in `cancel_order()`
+- Can check whether a plant has enough stock before ordering — `Plant.check_stock()` method, also called automatically during order creation
+- Orders can only be placed for customers and plants registered in the system — `NurserySystem.place_order()` validates both before creating the order
+- Payment tracking is not required — not implemented, as specified
+
+### Reporting Requirements
+
+- Can pull up a specific customer's order history — `OrderHistory.get_customer_order_history()` and `NurserySystem.get_customer_order_history()`
+- Can see every order on record — `OrderHistory.display_all_orders()` and `NurserySystem.display_all_orders()`
+
+### Technical Requirements
+
+- Each class has an initialiser that sets up attributes — all classes implement `__init__`
+- Private data members — all attributes use name mangling (`__` prefix)
+- Methods specific to each class — e.g. `check_stock()`, `reduce_stock()`, `restore_stock()` on `Plant`; `collect_order()`, `cancel_order()` on `Order`; `get_customer_order_history()` on `OrderHistory`
+- Getters and setters — implemented using `@property` decorators; setters only where updates are allowed
+- Overloaded `__str__` method for readable string representation — implemented on `Plant`, `Customer`, `Order`, and `NurserySystem`
+- Docstrings on every class and method — included throughout
+- Type hints on all method parameters and return values — included throughout
+- Comments where relevant — included to explain design choices and assumptions
+- Error conditions handled — `ValueError` and `TypeError` raised with descriptive messages for invalid inputs and illegal operations
