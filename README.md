@@ -4,6 +4,12 @@
 
 This is a plant nursery management system that tracks plants, customers, and orders. The design is based on Brent's notes outlining what the nursery needs for its day to day operations.
 
+## How to Run
+
+```bash
+python driver.py
+```
+
 ## Design Decisions
 
 ### Separation of Concerns
