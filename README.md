@@ -24,3 +24,5 @@ ORDER:
 Assuming there will be no new statuses for now
 Assuming we don't need to do any date manipulation for now so date is saved as string, not date for simplicity
 Assuming only status can be changed once an Order object is created
+
+I kept all the classes separate for a true separation of concerns. then i created the nursery system manager in order to have the collection objects all in one place so the driver only needs to talk to one collection object and we can be sure that order creation only happens for customers and plants that are in the system, then it updates the order history too to avoid mistakes.
