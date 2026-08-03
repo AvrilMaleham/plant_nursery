@@ -26,3 +26,40 @@ Assuming we don't need to do any date manipulation for now so date is saved as s
 Assuming only status can be changed once an Order object is created
 
 I kept all the classes separate for a true separation of concerns. then i created the nursery system manager in order to have the collection objects all in one place so the driver only needs to talk to one collection object and we can be sure that order creation only happens for customers and plants that are in the system, then it updates the order history too to avoid mistakes.
+
+project covers the following:
+each order to be for one type of plant.
+classes, objects, encapsulation, overloading, and getters and setters
+
+The system needs to know exactly how much stock we have for each plant,
+For each plant, we currently keep track of an ID, since we have had two batches of the same plant come in at different times and just going by name gets confusing.
+We also note the name, the category (trees and shrubs, perennials, pot plants, or vegetable seedlings), the price, and the stock level.
+we need to be able to add new plants without accidentally adding the same one twice
+see lists of what plants are available
+and another time a plant's price got written down as a negative number by mistake and sat there until a customer pointed it out.
+
+Customers are trickier. We have had two people with the same name before, so we really need something that tells them apart, a customer ID.
+We also need their name and either an email address or phone number, in case we need to get in touch about an order.
+we need to be able to add new customers without accidentally adding the same one twice
+see who our customers are
+
+we actually need to know for each order is which customer it is for, which plant it is for, how many they ordered, when they ordered it, dates written as DD-MM-YYYY same as everything else around here, the current status (pending, collected, or cancelled), and the order total.
+Each order is just for one type of plant at a time, if someone wants two different plants, we treat that as two separate orders.
+If someone orders ten or more of the same plant type in one order, the order total should have a ten percent discount applied
+How they actually settle the order is not something we need the system to track yet.
+someone once wrote down an order for zero plants by mistake, and it just sat there in the book looking like a real order,
+When an order does go through, the stock on hand needs to go down straight away,
+and it should never be allowed to go below zero.
+An order can be cancelled and the stock returned to what is available, but only while it is still pending. Once it has been collected, it can no longer be cancelled.
+We should also be able to check whether a specific plant has enough stock before someone orders it, and it needs to stop an order going through if there is not enough.
+
+pull up a customer's order history when we need it,
+see every order we have got on record,
+
+Each class must have:
+• An initialiser that sets up an object's attributes.
+• Private data members.
+• Methods specific to the class.
+• Getters and setters, and
+an overloaded method for a readable string representation of an object, where appropriate. 2. Include docstrings for every class and method. 3. Use type hints for all method parameters and return values. 4. Add comments where relevant.
+error conditions
