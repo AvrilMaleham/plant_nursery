@@ -124,7 +124,7 @@ class Order:
         """Returns a readable string of the order details"""
         return (
             "Order ID: {}, Order Date: {}, Order Status: {},"
-            " Customer: {}, Plant {}, Order Quantity: {}, Order Total: {}"
+            " Customer: {}, Plant: {}, Order Quantity: {}, Order Total: {}"
             .format(
                 self.__order_id, self.__order_date,
                 self.__order_status, self.__customer.cust_name,

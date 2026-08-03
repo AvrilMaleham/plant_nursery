@@ -125,7 +125,7 @@ class Plant:
         """Returns a readable string of the plant details"""
         return (
             "Plant ID: {}, Plant Name: {}, Plant Category: {},"
-            " Plant Price: {}, Plant Stock {}"
+            " Plant Price: {}, Plant Stock: {}"
             .format(
                 self.__plant_id, self.__plant_name,
                 self.__plant_category, self.__plant_price,
