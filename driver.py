@@ -42,6 +42,20 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
+# Error: creating a plant with zero stock
+print("--- Error: Plant created with zero stock ---")
+try:
+    bad_plant = Plant("Fern", "pot plants", 10.00, 0)
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Error: setting plant stock to 0
+print("--- Error: Setting plant stock to 0 ---")
+try:
+    rose.plant_stock = 0
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
 # ---------- Customers ----------
 
 # Add customers 

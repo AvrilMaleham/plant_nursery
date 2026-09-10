@@ -29,6 +29,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - A name will always be given and data types will be correct for now (no validation on inputs beyond what the type hints describe).
 - IDs are generated using UUID for simplicity.
 - Only stock and price can be changed once a `Plant` object is created, name and category are read only.
+- Stock cannot be set to 0. A plant must be created and restocked with a value greater than 0. Stock can only reach exactly zero when it is reduced through an order.
 
 ### Customer
 
@@ -51,7 +52,8 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Plant price is recorded — `plant_price` attribute
 - Plant stock level is tracked — `plant_stock` attribute
 - Price cannot be negative (or zero) — validated in `__init__` and the `plant_price` setter, raises `ValueError`
-- Stock cannot go below zero — validated in `__init__`, `plant_stock` setter, and `reduce_stock()`, raises `ValueError`
+- Stock cannot be set to 0 — validated in `__init__` and the `plant_stock` setter, raises `ValueError`. Stock can only reach exactly zero when reduced through an order via `reduce_stock()`
+- Stock cannot go below zero — `check_stock()` and `reduce_stock()` enforce this before the order is created
 - Can add new plants without accidentally adding the same one twice — `PlantCatalog.catalog_plant()` checks for duplicate IDs before adding
 - Can see a list of all plants — `PlantCatalog.display_all_plants()` and `NurserySystem.display_all_plants()`
 - Can see a list of available plants with non-zero current stock — `PlantCatalog.get_available_plants()`, `PlantCatalog.display_available_plants()`, and the matching `NurserySystem` methods
