@@ -24,7 +24,7 @@ class Customer:
         
     # ---------- Getters and Setters ----------
     
-    # Assuming Customer details are not updated after creation
+    # ID is generated and stays read only. Name, email, and phone can be updated after creation
         
     @property
     def cust_id(self) -> uuid.UUID:
@@ -36,15 +36,50 @@ class Customer:
         """Get the customer name"""
         return self.__cust_name
 
+    @cust_name.setter
+    def cust_name(self, value: str) -> None:
+        """
+        Update the customer name
+
+        :param value: New customer name
+        """
+        self.__cust_name = value
+
     @property
     def cust_email(self) -> str:
         """Get the customer email"""
         return self.__cust_email
 
+    @cust_email.setter
+    def cust_email(self, value: str) -> None:
+        """
+        Update the customer email. At least one contact method must remain.
+
+        :param value: New email address, or empty/None to clear it
+        :raises ValueError: If clearing the email would leave the customer with no contact details
+        """
+        new_email = value if value else None
+        if not new_email and not self.__cust_phone:
+            raise ValueError("Please provide at least an email or a phone number")
+        self.__cust_email = new_email
+
     @property
     def cust_phone(self) -> str:
         """Get the customer phone number"""
         return self.__cust_phone
+
+    @cust_phone.setter
+    def cust_phone(self, value: str) -> None:
+        """
+        Update the customer phone number. At least one contact method must remain.
+
+        :param value: New phone number, or empty/None to clear it
+        :raises ValueError: If clearing the phone would leave the customer with no contact details
+        """
+        new_phone = value if value else None
+        if not self.__cust_email and not new_phone:
+            raise ValueError("Please provide at least an email or a phone number")
+        self.__cust_phone = new_phone
         
     # ---------- Methods ----------
         

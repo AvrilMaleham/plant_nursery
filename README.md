@@ -34,7 +34,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 ### Customer
 
 - IDs are generated using UUID for simplicity.
-- Customer details (name, email, phone) are not updated after creation, only getters are provided, no setters.
+- Customer name, email, and phone can be updated after creation via setters. ID stays read only. At least one of email or phone must remain.
 
 ### Order
 
@@ -62,7 +62,8 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 
 - Customers each have a unique ID (since two customers can share the same name) — `Customer` uses UUID as the ID
 - Customer name is recorded — `cust_name` attribute
-- At least an email address or phone number is required — validated in `__init__`, raises `ValueError` if neither is provided
+- At least an email address or phone number is required — validated in `__init__` and the `cust_email` / `cust_phone` setters, raises `ValueError` if neither is provided
+- Customer name, email, and phone can be updated after creation — `cust_name`, `cust_email`, and `cust_phone` setters. ID has no setter.
 - Can add new customers without accidentally adding the same one twice — `CustomerDirectory.add_customer()` checks for duplicate IDs before adding
 - Can see a list of all customers — `CustomerDirectory.display_all_customers()` and `NurserySystem.display_all_customers()`
 

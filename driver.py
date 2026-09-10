@@ -84,6 +84,19 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
+# Update customer details
+print("--- Updating Customer Details ---")
+jane.cust_name = "Jane Smith"
+jane.cust_email = "jane@email.com"
+print(f"Jane after update: {jane}\n")
+
+# Error: clearing the last remaining contact method
+print("--- Error: Clearing last contact method ---")
+try:
+    avril.cust_email = ""
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
 # ---------- Orders ----------
 
 print("--- Placing Orders ---")
