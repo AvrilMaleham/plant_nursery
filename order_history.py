@@ -14,6 +14,8 @@ class OrderHistory:
     @property
     def order_list(self) -> list[Order]:
         """Get the list of orders"""
+        # A copy is returned so callers cannot change the internal list directly.
+        # New orders still have to go through add_order(), which checks for duplicate IDs.
         return self.__order_list.copy()
         
      # ---------- Methods ----------
@@ -43,12 +45,15 @@ class OrderHistory:
         :return: A list of Order objects belonging to that customer
         """
         matching_orders = []
+        # Match on customer ID rather than the Customer object itself, so history still
+        # works if the caller holds a different Python object with the same ID.
         for order in self.__order_list:
             if order.customer.cust_id == customer.cust_id:
                 matching_orders.append(order)
         return matching_orders
     
-    # Included this even though we have the order_list getter just to be explicit that there is a method to print each order in the list so we dont need the print statement in the driver for this    
+    # display_all_orders exists alongside the order_list getter so printing stays
+    # inside the history. The driver can call one method instead of looping itself. 
     def display_all_orders(self) -> None:
         """Print a readable list of every order in the list"""
         if not self.__order_list:

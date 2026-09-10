@@ -13,6 +13,8 @@ class CustomerDirectory:
     @property
     def customer_list(self) -> list[Customer]:
         """Get the list of customer"""
+        # A copy is returned so callers cannot change the internal list directly.
+        # New customers still have to go through add_customer(), which checks for duplicate IDs.
         return self.__customer_list.copy()
         
      # ---------- Methods ----------
@@ -29,12 +31,14 @@ class CustomerDirectory:
             raise TypeError("Only Customer objects may be added to the list")
         
         for existing_customer in self.__customer_list:
+            # Duplicate check is by customer ID because two people can share a name.
             if existing_customer.cust_id == customer.cust_id:
                 raise ValueError(f"Customer with ID {customer.cust_id} is already in the list")
             
         self.__customer_list.append(customer)
     
-    # Included this even though we have the customer_list getter just to be explicit that there is a method to print each customer in the list so we dont need the print statement in the driver for this    
+    # display_all_customers exists alongside the customer_list getter so printing stays
+    # inside the directory. The driver can call one method instead of looping itself. 
     def display_all_customers(self) -> None:
         """Print a readable list of every customer in the list"""
         if not self.__customer_list:

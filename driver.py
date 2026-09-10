@@ -2,12 +2,16 @@ from plant import Plant
 from customer import Customer
 from nursery_system import NurserySystem
 
-# Initialise the system
+# Driver for the nursery system. Each section shows a happy path first, then the
+# error cases for that feature, so it is clear what the classes accept and reject.
+
+# Initialise the system. All plants, customers, and orders go through this object
+# rather than being stored in the driver itself.
 system = NurserySystem()
 
 # ---------- Plants ----------
 
-# Add plants
+# Add one plant from each category so the catalog and later order examples have stock to use.
 print("--- Adding Plants ---")
 rose = Plant("Rose", "trees and shrubs", 15.99, 25)
 system.add_plant(rose)
@@ -23,33 +27,34 @@ system.add_plant(lavender)
 
 print("Plants added successfully\n")
 
-# Display all plants
+# Full catalog, including every plant just added. Later this is printed again after
+# a sold out orchid can be compared with the available list.
 print("--- All Plants ---")
 system.display_all_plants()
 print()
 
-# Error: adding a plant with invalid price
+# Price must be greater than 0. A negative price is rejected at creation.
 print("--- Error: Invalid plant price ---")
 try:
     bad_plant = Plant("Daisy", "perennials", -5.00, 10)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: adding a plant with invalid category
+# Category must be one of the four allowed values. "succulents" is not in that set.
 print("--- Error: Invalid plant category ---")
 try:
     bad_plant = Plant("Cactus", "succulents", 8.00, 15)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: creating a plant with zero stock
+# A plant cannot be created already sold out. Stock of 0 is only valid after an order.
 print("--- Error: Plant created with zero stock ---")
 try:
     bad_plant = Plant("Fern", "pot plants", 10.00, 0)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: setting plant stock to 0
+# The stock setter also rejects 0. Direct restocking must be a positive amount.
 print("--- Error: Setting plant stock to 0 ---")
 try:
     rose.plant_stock = 0
@@ -58,7 +63,8 @@ except ValueError as e:
 
 # ---------- Customers ----------
 
-# Add customers 
+# Add customers with different contact details. Names do not have to be unique,
+# which is why another_jane can share Jane's name but still has her own ID.
 print("--- Adding Customers ---")
 avril = Customer("Avril", cust_email="avril@email.com")
 system.add_customer(avril)
@@ -66,7 +72,7 @@ system.add_customer(avril)
 jane = Customer("Jane", cust_phone="021-555-0199")
 system.add_customer(jane)
 
-# Two customers with the same name but different IDs
+# Two customers with the same name but different IDs, to show that identity is by ID.
 another_jane = Customer("Jane", cust_email="jane2@email.com")
 system.add_customer(another_jane)
 
@@ -77,20 +83,20 @@ print("--- All Customers ---")
 system.display_all_customers()
 print()
 
-# Error: customer with no contact info
+# A customer must have at least an email or a phone number so they can be contacted.
 print("--- Error: Customer with no contact details ---")
 try:
     bad_customer = Customer("John")
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Update customer details
+# Name, email, and phone can be updated after creation through setters.
 print("--- Updating Customer Details ---")
 jane.cust_name = "Jane Smith"
 jane.cust_email = "jane@email.com"
 print(f"Jane after update: {jane}\n")
 
-# Error: clearing the last remaining contact method
+# Avril only has an email, so clearing it would leave no contact method and is rejected.
 print("--- Error: Clearing last contact method ---")
 try:
     avril.cust_email = ""
@@ -101,44 +107,44 @@ except ValueError as e:
 
 print("--- Placing Orders ---")
 
-# Normal order
+# A normal order of 3 roses. Stock should drop immediately when this is placed.
 order1 = system.place_order(avril, rose, 3)
 print(f"Order placed: {order1}")
 print(f"Rose stock after order: {rose.plant_stock}\n")
 
-# Set a valid order date
+# Order date is settable so staff can record a date other than today.
 print("--- Setting Order Date ---")
 order1.order_date = "01-09-2026"
 print(f"Order 1 date updated: {order1.order_date}\n")
 
-# Error: invalid order date
+# Impossible calendar dates are rejected, not just badly formatted strings.
 print("--- Error: Invalid order date ---")
 try:
     order1.order_date = "32-13-2026"
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Order with 10+ discount
+# Ordering 10 or more of the same plant applies a 10% discount to the total.
 order2 = system.place_order(jane, tomato, 12)
 print(f"Order placed (10% discount applied): {order2}")
 print(f"Expected total: 12 x $4.50 x 0.9 = ${12 * 4.50 * 0.9:.2f}")
 print(f"Actual total: ${order2.order_total}\n")
 
-# Error: order for zero plants
+# Quantity of 0 is not a valid order.
 print("--- Error: Order for zero plants ---")
 try:
     system.place_order(avril, orchid, 0)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: order exceeding stock
+# Ordering more than current stock is rejected so stock can never go below zero.
 print("--- Error: Order exceeding available stock ---")
 try:
     system.place_order(jane, orchid, 100)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: order for unregistered customer
+# Mary is a valid Customer object but has not been added to the system, so the order is refused.
 print("--- Error: Order for unregistered customer ---")
 try:
     unregistered = Customer("Mary", cust_email="mary@email.com")
@@ -146,7 +152,7 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Error: order for unregistered plant
+# Echinacea has not been added to the catalog, so it cannot be ordered either.
 print("--- Error: Order for unregistered plant ---")
 try:
     echinacea = Plant("Echinacea", "perennials", 9.99, 100)
@@ -156,26 +162,27 @@ except ValueError as e:
 
 # ---------- Order Status ----------
 
-# Collect an order
+# Collecting moves a pending order to collected. There is no status setter, this method is the path.
 print("--- Collecting Order ---")
 system.collect_order(order1)
 print(f"Order 1 status: {order1.order_status}\n")
 
-# Error: cancel a collected order
+# Once collected, an order can no longer be cancelled.
 print("--- Error: Cancel collected order ---")
 try:
     system.cancel_order(order1)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Cancel a pending order (stock restored)
+# Cancelling a pending order restores the stock that was taken when it was placed.
 print("--- Cancelling Pending Order ---")
 print(f"Tomato stock before cancel: {tomato.plant_stock}")
 system.cancel_order(order2)
 print(f"Order 2 status: {order2.order_status}")
 print(f"Tomato stock after cancel: {tomato.plant_stock}\n")
 
-# Sell out a plant so the available list differs from the full catalog
+# Sell out orchid through an order (not the stock setter) so stock can reach 0 legally.
+# All plants should still include orchid at 0 and available plants should not.
 print("--- Selling Out Orchid ---")
 order3 = system.place_order(avril, orchid, orchid.plant_stock)
 print(f"Order placed: {order3}")
@@ -189,7 +196,7 @@ print("--- Available Plants (non-zero stock) ---")
 system.display_available_plants()
 print()
 
-# Error: cancel an already cancelled order
+# An order that is already cancelled cannot be cancelled again.
 print("--- Error: Cancel already cancelled order ---")
 try:
     system.cancel_order(order2)
@@ -198,31 +205,32 @@ except ValueError as e:
 
 # ---------- Search ----------
 
+# Lookups are by ID so plants, customers, and orders can be found after they are created.
 print("--- Searching by ID ---")
-# Search for a plant
+# Search for a plant by the ID that was generated on creation.
 found_plant = system.find_plant(rose.plant_id)
 print(f"Found plant: {found_plant}")
-# Search for a customer
+# Search for a customer the same way, by ID rather than name (names are not unique).
 found_customer = system.find_customer(avril.cust_id)
 print(f"Found customer: {found_customer}")
-# Search for an order
+# Search for an order by its ID.
 found_order = system.find_order(order1.order_id)
 print(f"Found order: {found_order}\n")
 
 # ---------- Reporting ----------
 
-# Customer order history
+# All orders Avril has placed, including collected and pending ones.
 print("--- Avril's Order History ---")
 avril_orders = system.get_customer_order_history(avril)
 for order in avril_orders:
     print(order)
 print()
 
-# All orders
+# Every order on record, regardless of customer or status.
 print("--- All Orders ---")
 system.display_all_orders()
 print()
 
-# System summary
+# Short count of plants, customers, and orders currently in the system.
 print("--- System Summary ---")
 print(system)

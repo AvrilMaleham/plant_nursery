@@ -16,6 +16,8 @@ class NurserySystem:
 
     def __init__(self) -> None:
         """Initialise a new NurserySystem with empty catalog, directory, and order history"""
+        # The three collections live here so the driver only talks to one object.
+        # Orders can then only be created for plants and customers that are already registered.
         self.__catalog = PlantCatalog()
         self.__directory = CustomerDirectory()
         self.__history = OrderHistory()
@@ -58,6 +60,7 @@ class NurserySystem:
         :raises ValueError: If no plant with that ID is found
         """
         for plant in self.__catalog.plant_list:
+            # Search is by ID because plant names are not unique (two batches can share a name).
             if plant.plant_id == plant_id:
                 return plant
         raise ValueError(f"No plant found with ID {plant_id}")
@@ -99,6 +102,7 @@ class NurserySystem:
         :raises ValueError: If no customer with that ID is found
         """
         for customer in self.__directory.customer_list:
+            # Search is by ID because customer names are not unique.
             if customer.cust_id == customer_id:
                 return customer
         raise ValueError(f"No customer found with ID {customer_id}")
@@ -121,6 +125,9 @@ class NurserySystem:
         :return: The newly created Order object
         :raises ValueError: If customer or plant is not registered in the system, insufficient stock, or order date is invalid
         """
+        # Registration is checked by ID rather than `customer in list` / `plant in list`.
+        # That way a Customer or Plant with the same ID is accepted even if it is not
+        # the exact same Python object that was originally added.
         customer_found = False
         for existing_customer in self.__directory.customer_list:
             if existing_customer.cust_id == customer.cust_id:
@@ -137,6 +144,7 @@ class NurserySystem:
         if not plant_found:
             raise ValueError("Plant is not registered in the system")
         
+        # Creating the Order reduces stock immediately so adding it here keeps history in sync.
         order = Order(customer, plant, quantity, order_date)
         self.__history.add_order(order)
         return order
@@ -163,6 +171,8 @@ class NurserySystem:
         """
         if order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
+        # collect_order() on Order enforces the legal status change, this only confirms
+        # the order belongs to this nursery first.
         order.collect_order()
 
     def cancel_order(self, order: Order) -> None:
@@ -174,6 +184,7 @@ class NurserySystem:
         """
         if order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
+        # cancel_order() on Order restores stock if the order is still pending.
         order.cancel_order()
 
     def get_customer_order_history(self, customer: Customer) -> list[Order]:
@@ -184,6 +195,8 @@ class NurserySystem:
         :return: A list of Order objects belonging to that customer
         :raises ValueError: If customer is not registered in the system
         """
+        # Same ID check as place_order, so history can be requested without needing
+        # the original Customer object that was added to the directory.
         customer_found = False
         for existing_customer in self.__directory.customer_list:
             if existing_customer.cust_id == customer.cust_id:

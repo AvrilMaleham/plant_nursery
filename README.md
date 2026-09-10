@@ -97,5 +97,5 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Overloaded `__str__` method for readable string representation — implemented on `Plant`, `Customer`, `Order`, and `NurserySystem`
 - Docstrings on every class and method — included throughout
 - Type hints on all method parameters and return values — included throughout
-- Comments where relevant — included to explain design choices and assumptions
+- Comments where relevant — included throughout to explain design choices and assumptions (why IDs, setters vs methods, copies of lists, stock reaching zero only through orders, and so on)
 - Error conditions handled — `ValueError` and `TypeError` raised with descriptive messages for invalid inputs and illegal operations
