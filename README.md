@@ -39,8 +39,8 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 ### Order
 
 - No new statuses will be added at this time, the three statuses are fixed using a `Literal` type.
-- No date manipulation is needed for now, so the order date is stored as a string in DD-MM-YYYY format rather than a `date` object for simplicity.
-- Only the status can change once an `Order` object is created, all other fields are read only. Status changes go through `collect_order()` and `cancel_order()` methods rather than a setter, for more control over the business rules.
+- Order date is stored as a string in DD-MM-YYYY format. It defaults to today, can be set on creation or via a setter, and is validated as a real calendar date.
+- Status changes go through `collect_order()` and `cancel_order()` methods rather than a setter, for more control over the business rules.
 
 ## Requirements Covered from Brent's Notes
 
@@ -69,6 +69,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 ### Order Requirements
 
 - Each order records: customer, plant, quantity, date (DD-MM-YYYY), status, and order total — all stored as attributes on `Order`
+- Order date is settable and validated as a real calendar date in DD-MM-YYYY format — `__init__` and the `order_date` setter raise `ValueError` for invalid dates
 - Each order is for one type of plant only — each `Order` object holds a single `Plant` reference
 - 10% discount applied when ordering 10 or more of the same plant — handled in `__calculate_total()`
 - Orders for zero (or fewer) plants are rejected — validated in `__init__`, raises `ValueError` if quantity < 1

@@ -93,6 +93,18 @@ order1 = system.place_order(avril, rose, 3)
 print(f"Order placed: {order1}")
 print(f"Rose stock after order: {rose.plant_stock}\n")
 
+# Set a valid order date
+print("--- Setting Order Date ---")
+order1.order_date = "01-09-2026"
+print(f"Order 1 date updated: {order1.order_date}\n")
+
+# Error: invalid order date
+print("--- Error: Invalid order date ---")
+try:
+    order1.order_date = "32-13-2026"
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
 # Order with 10+ discount
 order2 = system.place_order(jane, tomato, 12)
 print(f"Order placed (10% discount applied): {order2}")

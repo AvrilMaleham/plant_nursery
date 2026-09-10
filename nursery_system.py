@@ -109,7 +109,7 @@ class NurserySystem:
 
     # ---------- Order Methods ----------
 
-    def place_order(self, customer: Customer, plant: Plant, quantity: int) -> Order:
+    def place_order(self, customer: Customer, plant: Plant, quantity: int, order_date: str = None) -> Order:
         """
         Place a new order after validating the customer and plant are registered.
         Stock is reduced immediately when the order is created.
@@ -117,15 +117,16 @@ class NurserySystem:
         :param customer: The Customer placing the order
         :param plant: The Plant being ordered
         :param quantity: Number of plants to order
+        :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
         :return: The newly created Order object
-        :raises ValueError: If customer or plant is not registered in the system, or insufficient stock
+        :raises ValueError: If customer or plant is not registered in the system, insufficient stock, or order date is invalid
         """
         if customer not in self.__directory.customer_list:
             raise ValueError("Customer is not registered in the system")
         if plant not in self.__catalog.plant_list:
             raise ValueError("Plant is not registered in the system")
         
-        order = Order(customer, plant, quantity)
+        order = Order(customer, plant, quantity, order_date)
         self.__history.add_order(order)
         return order
 
