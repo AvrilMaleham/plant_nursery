@@ -48,7 +48,7 @@ class Order:
         
     # ---------- Getters and Setters ----------
     
-    # Status changes go through methods rather than a setter for more control; order date can be updated via its setter
+    # Status changes go through methods rather than a setter for more control but order date can be updated via its setter
     @property
     def order_id(self) -> uuid.UUID:
         """Get the unique order ID"""

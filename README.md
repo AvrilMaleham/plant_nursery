@@ -79,7 +79,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Cancelling a pending order restores the stock — `cancel_order()` calls `plant.restore_stock(quantity)`
 - Once collected, an order can no longer be cancelled — enforced in `cancel_order()`
 - Can check whether a plant has enough stock before ordering — `Plant.check_stock()` method, also called automatically during order creation
-- Orders can only be placed for customers and plants registered in the system — `NurserySystem.place_order()` validates both before creating the order
+- Orders can only be placed for customers and plants registered in the system — `NurserySystem.place_order()` searches by customer ID and plant ID directly before creating the order
 - Payment tracking is not required — not implemented, as specified
 
 ### Reporting Requirements

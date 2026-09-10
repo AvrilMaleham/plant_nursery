@@ -111,7 +111,7 @@ class NurserySystem:
 
     def place_order(self, customer: Customer, plant: Plant, quantity: int, order_date: str = None) -> Order:
         """
-        Place a new order after validating the customer and plant are registered.
+        Place a new order after validating the customer and plant are registered by ID.
         Stock is reduced immediately when the order is created.
 
         :param customer: The Customer placing the order
@@ -121,9 +121,20 @@ class NurserySystem:
         :return: The newly created Order object
         :raises ValueError: If customer or plant is not registered in the system, insufficient stock, or order date is invalid
         """
-        if customer not in self.__directory.customer_list:
+        customer_found = False
+        for existing_customer in self.__directory.customer_list:
+            if existing_customer.cust_id == customer.cust_id:
+                customer_found = True
+                break
+        if not customer_found:
             raise ValueError("Customer is not registered in the system")
-        if plant not in self.__catalog.plant_list:
+
+        plant_found = False
+        for existing_plant in self.__catalog.plant_list:
+            if existing_plant.plant_id == plant.plant_id:
+                plant_found = True
+                break
+        if not plant_found:
             raise ValueError("Plant is not registered in the system")
         
         order = Order(customer, plant, quantity, order_date)
@@ -173,7 +184,12 @@ class NurserySystem:
         :return: A list of Order objects belonging to that customer
         :raises ValueError: If customer is not registered in the system
         """
-        if customer not in self.__directory.customer_list:
+        customer_found = False
+        for existing_customer in self.__directory.customer_list:
+            if existing_customer.cust_id == customer.cust_id:
+                customer_found = True
+                break
+        if not customer_found:
             raise ValueError("Customer is not registered in the system")
         return self.__history.get_customer_order_history(customer)
 
