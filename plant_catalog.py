@@ -34,6 +34,18 @@ class PlantCatalog:
             
         self.__plant_list.append(plant)
     
+    def get_available_plants(self) -> list[Plant]:
+        """
+        Return plants that currently have stock available to sell
+
+        :return: A list of Plant objects with current stock greater than 0
+        """
+        available_plants = []
+        for plant in self.__plant_list:
+            if plant.plant_stock > 0:
+                available_plants.append(plant)
+        return available_plants
+    
     # Included this even though we have the plant_list getter just to be explicit that there is a method to print each plant in the list so we dont need the print statement in the driver for this    
     def display_all_plants(self) -> None:
         """Print a readable list of every plant in the catalog"""
@@ -42,5 +54,15 @@ class PlantCatalog:
             return
         
         for plant in self.__plant_list:
+            print(plant)
+
+    def display_available_plants(self) -> None:
+        """Print a readable list of plants with non-zero current stock"""
+        available_plants = self.get_available_plants()
+        if not available_plants:
+            print("No plants currently in stock")
+            return
+
+        for plant in available_plants:
             print(plant)
         

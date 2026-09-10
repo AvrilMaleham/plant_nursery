@@ -53,7 +53,8 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Price cannot be negative (or zero) — validated in `__init__` and the `plant_price` setter, raises `ValueError`
 - Stock cannot go below zero — validated in `__init__`, `plant_stock` setter, and `reduce_stock()`, raises `ValueError`
 - Can add new plants without accidentally adding the same one twice — `PlantCatalog.catalog_plant()` checks for duplicate IDs before adding
-- Can see a list of all plants available — `PlantCatalog.display_all_plants()` and `NurserySystem.display_all_plants()`
+- Can see a list of all plants — `PlantCatalog.display_all_plants()` and `NurserySystem.display_all_plants()`
+- Can see a list of available plants with non-zero current stock — `PlantCatalog.get_available_plants()`, `PlantCatalog.display_available_plants()`, and the matching `NurserySystem` methods
 
 ### Customer Requirements
 

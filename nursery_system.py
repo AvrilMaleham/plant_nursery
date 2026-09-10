@@ -66,6 +66,18 @@ class NurserySystem:
         """Print a readable list of every plant in the catalog"""
         self.__catalog.display_all_plants()
 
+    def get_available_plants(self) -> list[Plant]:
+        """
+        Return plants that currently have stock available to sell
+
+        :return: A list of Plant objects with current stock greater than 0
+        """
+        return self.__catalog.get_available_plants()
+
+    def display_available_plants(self) -> None:
+        """Print a readable list of plants with non-zero current stock"""
+        self.__catalog.display_available_plants()
+
     # ---------- Customer Methods ----------
 
     def add_customer(self, customer: Customer) -> None:

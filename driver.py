@@ -136,6 +136,20 @@ system.cancel_order(order2)
 print(f"Order 2 status: {order2.order_status}")
 print(f"Tomato stock after cancel: {tomato.plant_stock}\n")
 
+# Sell out a plant so the available list differs from the full catalog
+print("--- Selling Out Orchid ---")
+order3 = system.place_order(avril, orchid, orchid.plant_stock)
+print(f"Order placed: {order3}")
+print(f"Orchid stock after order: {orchid.plant_stock}\n")
+
+print("--- All Plants (includes sold out) ---")
+system.display_all_plants()
+print()
+
+print("--- Available Plants (non-zero stock) ---")
+system.display_available_plants()
+print()
+
 # Error: cancel an already cancelled order
 print("--- Error: Cancel already cancelled order ---")
 try:
