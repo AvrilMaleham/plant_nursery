@@ -37,14 +37,55 @@ class CustomerDirectory:
             
         self.__customer_list.append(customer)
     
+    def get_customers_by_type(self, customer_type: str) -> list[Customer]:
+        """
+        Return customers of one type
+
+        :param customer_type: The customer_type() value to match, such as staff, student, or community
+        :return: A list of matching Customer objects
+        """
+        matching_customers = []
+        # customer_type() is abstract, so each subclass supplies its own label
+        # without the directory needing to know StaffCustomer from CommunityCustomer.
+        for customer in self.__customer_list:
+            if customer.customer_type() == customer_type:
+                matching_customers.append(customer)
+        return matching_customers
+
     # display_all_customers exists alongside the customer_list getter so printing stays
-    # inside the directory. The driver can call one method instead of looping itself. 
+    # inside the directory. The driver can call one method instead of looping itself.
     def display_all_customers(self) -> None:
         """Print a readable list of every customer in the list"""
         if not self.__customer_list:
             print("No customers in the catalog")
             return
-        
+
         for customer in self.__customer_list:
             print(customer)
-        
+
+    def display_staff_customers(self) -> None:
+        """Print a readable list of staff customers"""
+        self.__display_customers_of_type("staff", "No staff customers in the directory")
+
+    def display_student_customers(self) -> None:
+        """Print a readable list of student customers"""
+        self.__display_customers_of_type("student", "No student customers in the directory")
+
+    def display_community_customers(self) -> None:
+        """Print a readable list of community customers"""
+        self.__display_customers_of_type("community", "No community customers in the directory")
+
+    def __display_customers_of_type(self, customer_type: str, empty_message: str) -> None:
+        """
+        Print customers of one type
+
+        :param customer_type: The customer_type() value to match
+        :param empty_message: Message to print when none are found
+        """
+        matching_customers = self.get_customers_by_type(customer_type)
+        if not matching_customers:
+            print(empty_message)
+            return
+
+        for customer in matching_customers:
+            print(customer)

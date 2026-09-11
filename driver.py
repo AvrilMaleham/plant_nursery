@@ -1,5 +1,5 @@
 from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
-from customer import Customer
+from customer import Customer, StaffCustomer, StudentCustomer, CommunityCustomer
 from nursery_system import NurserySystem
 
 # Driver for the nursery system. Each section shows a happy path first, then the
@@ -70,30 +70,49 @@ except ValueError as e:
 
 # ---------- Customers ----------
 
-# Add customers with different contact details. Names do not have to be unique,
+# Add one customer from each subclass. Names do not have to be unique,
 # which is why another_jane can share Jane's name but still has her own ID.
 print("--- Adding Customers ---")
-avril = Customer("Avril", cust_email="avril@email.com")
+avril = StaffCustomer("Avril", cust_email="avril@email.com")
 system.add_customer(avril)
 
-jane = Customer("Jane", cust_phone="021-555-0199")
+jane = StudentCustomer("Jane", cust_phone="021-555-0199")
 system.add_customer(jane)
 
 # Two customers with the same name but different IDs, to show that identity is by ID.
-another_jane = Customer("Jane", cust_email="jane2@email.com")
+another_jane = CommunityCustomer("Jane", cust_email="jane2@email.com")
 system.add_customer(another_jane)
 
 print("Customers added successfully\n")
 
-# Display all customers
+# Display all customers, then each type on its own list.
 print("--- All Customers ---")
 system.display_all_customers()
 print()
 
+print("--- Staff Customers ---")
+system.display_staff_customers()
+print()
+
+print("--- Student Customers ---")
+system.display_student_customers()
+print()
+
+print("--- Community Customers ---")
+system.display_community_customers()
+print()
+
+# Customer is abstract, so a customer must be created as one of the three subclasses.
+print("--- Error: Cannot create a Customer directly ---")
+try:
+    bad_customer = Customer("John", cust_email="john@email.com")
+except TypeError as e:
+    print(f"Caught: {e}\n")
+
 # A customer must have at least an email or a phone number so they can be contacted.
 print("--- Error: Customer with no contact details ---")
 try:
-    bad_customer = Customer("John")
+    bad_customer = StaffCustomer("John")
 except ValueError as e:
     print(f"Caught: {e}\n")
 
@@ -154,7 +173,7 @@ except ValueError as e:
 # Mary is a valid Customer object but has not been added to the system, so the order is refused.
 print("--- Error: Order for unregistered customer ---")
 try:
-    unregistered = Customer("Mary", cust_email="mary@email.com")
+    unregistered = CommunityCustomer("Mary", cust_email="mary@email.com")
     system.place_order(unregistered, rose, 1)
 except ValueError as e:
     print(f"Caught: {e}\n")

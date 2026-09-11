@@ -111,6 +111,18 @@ class NurserySystem:
         """Print a readable list of every customer in the directory"""
         self.__directory.display_all_customers()
 
+    def display_staff_customers(self) -> None:
+        """Print a readable list of staff customers"""
+        self.__directory.display_staff_customers()
+
+    def display_student_customers(self) -> None:
+        """Print a readable list of student customers"""
+        self.__directory.display_student_customers()
+
+    def display_community_customers(self) -> None:
+        """Print a readable list of community customers"""
+        self.__directory.display_community_customers()
+
     # ---------- Order Methods ----------
 
     def place_order(self, customer: Customer, plant: Plant, quantity: int, order_date: str = None) -> Order:

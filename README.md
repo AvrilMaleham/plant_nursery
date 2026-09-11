@@ -10,7 +10,7 @@ This is a plant nursery management system that tracks plants, customers, and ord
 python driver.py
 ```
 
-## Design Decisions
+## Design Decisions for Assignment 1
 
 ### Separation of Concerns
 
@@ -20,7 +20,7 @@ I kept all the classes in separate files for a true separation of concerns. Each
 
 Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has a `display_all` method even though a getter for the list already exists. This keeps the print logic inside the class rather than requiring a loop in the driver, which is cleaner and more reusable.
 
-## Assumptions
+## Assumptions for Assignment 1
 
 ### Plant
 
@@ -99,6 +99,26 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Type hints on all method parameters and return values — included throughout
 - Comments where relevant — included throughout to explain design choices and assumptions (why IDs, setters vs methods, copies of lists, stock reaching zero only through orders, and so on)
 - Error conditions handled — `ValueError` and `TypeError` raised with descriptive messages for invalid inputs and illegal operations
+
+## Design Decisions for Assignment 2
+
+### Inheritance Hierarchies in One File
+
+For asignment 1 I kept each class in its own file. For assignment 2 I kept each abstract base class in the same file as the subclasses that inherit from it, for example, `Plant` lives with `TreeAndShrub`, `Perennial`, `PotPlant`, and `VegetableSeedling`.
+
+### Order Rules are in the Customer Class, not the Order Class
+
+Even though whether a customer can place an order or collect an order is related to ordering, I felt it was more closely related to customer as each rule is unique to each customer.
+
+## Assumptions for Assignment 2
+
+### Plant
+
+- If seedlings per punnet is not given, it defaults to 6, because Brent noted that six is average.
+
+### Customer
+
+- Staff and students are blocked when their current balance is already over $100, not when the new order would take them over.
 
 ## Requirements Covered from Brent's Notes for Assignment 2
 
