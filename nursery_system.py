@@ -125,17 +125,23 @@ class NurserySystem:
 
     # ---------- Order Methods ----------
 
-    def place_order(self, customer: Customer, plant: Plant, quantity: int, order_date: str = None) -> Order:
+    def place_order(
+        self,
+        customer: Customer,
+        items: list[tuple[Plant, int]],
+        order_date: str = None,
+    ) -> Order:
         """
-        Place a new order after validating the customer and plant are registered by ID.
+        Place a new order after validating the customer and plants are registered by ID.
+        The customer's place-order rules are checked before the order is created.
         Stock is reduced immediately when the order is created.
 
         :param customer: The Customer placing the order
-        :param plant: The Plant being ordered
-        :param quantity: Number of plants to order
+        :param items: A list of (plant, quantity) pairs to include on the order
         :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
         :return: The newly created Order object
-        :raises ValueError: If customer or plant is not registered in the system, insufficient stock, or order date is invalid
+        :raises ValueError: If customer or a plant is not registered, the customer is not
+            allowed to place an order, there is insufficient stock, or the order date is invalid
         """
         # Registration is checked by ID rather than `customer in list` / `plant in list`.
         # That way a Customer or Plant with the same ID is accepted even if it is not
@@ -148,16 +154,23 @@ class NurserySystem:
         if not customer_found:
             raise ValueError("Customer is not registered in the system")
 
-        plant_found = False
-        for existing_plant in self.__catalog.plant_list:
-            if existing_plant.plant_id == plant.plant_id:
-                plant_found = True
-                break
-        if not plant_found:
-            raise ValueError("Plant is not registered in the system")
-        
-        # Creating the Order reduces stock immediately so adding it here keeps history in sync.
-        order = Order(customer, plant, quantity, order_date)
+        for plant, _quantity in items:
+            plant_found = False
+            for existing_plant in self.__catalog.plant_list:
+                if existing_plant.plant_id == plant.plant_id:
+                    plant_found = True
+                    break
+            if not plant_found:
+                raise ValueError("Plant is not registered in the system")
+
+        # Ask the customer whether they may order. Staff/student use balance,
+        # community uses how many pending orders they already have.
+        pending_count = self.__history.get_pending_order_count(customer)
+        if not customer.can_place_order(pending_count):
+            raise ValueError("Customer is not allowed to place a new order")
+
+        # Creating the Order reduces stock and adds the total to the customer balance.
+        order = Order(customer, items, order_date)
         self.__history.add_order(order)
         return order
 
@@ -189,7 +202,7 @@ class NurserySystem:
 
     def cancel_order(self, order: Order) -> None:
         """
-        Cancel a pending order and restore the stock
+        Cancel a pending unpaid order, restore the stock, and take the total off the customer balance
 
         :param order: The Order to cancel
         :raises ValueError: If the order is not in the system, or cannot be cancelled

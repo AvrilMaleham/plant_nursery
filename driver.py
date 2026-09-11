@@ -133,10 +133,12 @@ except ValueError as e:
 
 print("--- Placing Orders ---")
 
-# A normal order of 3 roses. Stock should drop immediately when this is placed.
-order1 = system.place_order(avril, rose, 3)
+# A staff order of 3 roses. Stock drops immediately, the 1% staff discount comes off
+# the order total, and that total is added to what Avril owes.
+order1 = system.place_order(avril, [(rose, 3)])
 print(f"Order placed: {order1}")
-print(f"Rose stock after order: {rose.plant_stock}\n")
+print(f"Rose stock after order: {rose.plant_stock}")
+print(f"Avril balance after order: {avril.balance}\n")
 
 # Order date is settable so staff can record a date other than today.
 print("--- Setting Order Date ---")
@@ -150,23 +152,26 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Ordering 10 or more of the same plant applies a 10% discount to the total.
-order2 = system.place_order(jane, tomato, 12)
-print(f"Order placed (10% discount applied): {order2}")
-print(f"Expected total: 12 x $4.50 x 0.9 = ${12 * 4.50 * 0.9:.2f}")
-print(f"Actual total: ${order2.order_total}\n")
+# 10 or more of the same plant gets 10% off that item, then the student 5% comes off
+# the order as a whole.
+order2 = system.place_order(jane, [(tomato, 12)])
+print(f"Order placed (item 10% then student 5%): {order2}")
+print(f"Expected item cost: 12 x $4.50 x 0.9 = ${12 * 4.50 * 0.9:.2f}")
+print(f"Expected order total: $48.60 x 0.95 = ${48.60 * 0.95:.2f}")
+print(f"Actual total: ${order2.order_total}")
+print(f"Jane balance after order: {jane.balance}\n")
 
-# Quantity of 0 is not a valid order.
+# Quantity of 0 is not a valid order item.
 print("--- Error: Order for zero plants ---")
 try:
-    system.place_order(avril, orchid, 0)
+    system.place_order(avril, [(orchid, 0)])
 except ValueError as e:
     print(f"Caught: {e}\n")
 
 # Ordering more than current stock is rejected so stock can never go below zero.
 print("--- Error: Order exceeding available stock ---")
 try:
-    system.place_order(jane, orchid, 100)
+    system.place_order(jane, [(orchid, 100)])
 except ValueError as e:
     print(f"Caught: {e}\n")
 
@@ -174,7 +179,7 @@ except ValueError as e:
 print("--- Error: Order for unregistered customer ---")
 try:
     unregistered = CommunityCustomer("Mary", cust_email="mary@email.com")
-    system.place_order(unregistered, rose, 1)
+    system.place_order(unregistered, [(rose, 1)])
 except ValueError as e:
     print(f"Caught: {e}\n")
 
@@ -182,16 +187,46 @@ except ValueError as e:
 print("--- Error: Order for unregistered plant ---")
 try:
     echinacea = Perennial("Echinacea", 9.99, 100)
-    system.place_order(avril, echinacea, 1)
+    system.place_order(avril, [(echinacea, 1)])
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# The same plant cannot appear twice on one order, so the bulk discount is not split
+# across two lines of the same plant.
+print("--- Error: Duplicate plant on one order ---")
+try:
+    system.place_order(avril, [(rose, 1), (rose, 1)])
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# One order can hold different plant types as separate items.
+print("--- Multi-item Community Order ---")
+order_community = system.place_order(another_jane, [(rose, 4), (orchid, 2), (tomato, 1)])
+print(f"Order placed: {order_community}")
+print(f"Community Jane balance: {another_jane.balance}\n")
+
+# Community customers can only have one pending order at a time.
+print("--- Error: Community customer already has a pending order ---")
+try:
+    system.place_order(another_jane, [(lavender, 1)])
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Community customers must pay in full before collecting. Payments are not in yet,
+# so this order still has a remaining balance.
+print("--- Error: Collect unpaid community order ---")
+try:
+    system.collect_order(order_community)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
 # ---------- Order Status ----------
 
-# Collecting moves a pending order to collected. There is no status setter, this method is the path.
-print("--- Collecting Order ---")
+# Staff may collect while still owing. There is no status setter, this method is the path.
+print("--- Collecting Staff Order ---")
 system.collect_order(order1)
-print(f"Order 1 status: {order1.order_status}\n")
+print(f"Order 1 status: {order1.order_status}")
+print(f"Avril still owing after collect: {avril.balance}\n")
 
 # Once collected, an order can no longer be cancelled.
 print("--- Error: Cancel collected order ---")
@@ -200,19 +235,29 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Cancelling a pending order restores the stock that was taken when it was placed.
+# Cancelling a pending order restores the stock and takes the total back off the balance.
 print("--- Cancelling Pending Order ---")
 print(f"Tomato stock before cancel: {tomato.plant_stock}")
+print(f"Jane balance before cancel: {jane.balance}")
 system.cancel_order(order2)
 print(f"Order 2 status: {order2.order_status}")
-print(f"Tomato stock after cancel: {tomato.plant_stock}\n")
+print(f"Tomato stock after cancel: {tomato.plant_stock}")
+print(f"Jane balance after cancel: {jane.balance}\n")
 
-# Sell out orchid through an order (not the stock setter) so stock can reach 0 legally.
+# Sell out remaining orchids through an order (not the stock setter) so stock can reach 0 legally.
 # All plants should still include orchid at 0 and available plants should not.
 print("--- Selling Out Orchid ---")
-order3 = system.place_order(avril, orchid, orchid.plant_stock)
+order3 = system.place_order(avril, [(orchid, orchid.plant_stock)])
 print(f"Order placed: {order3}")
-print(f"Orchid stock after order: {orchid.plant_stock}\n")
+print(f"Orchid stock after order: {orchid.plant_stock}")
+print(f"Avril balance after order: {avril.balance}\n")
+
+# Avril now owes more than $100, so staff cannot place another order until it is paid down.
+print("--- Error: Staff owing more than $100 ---")
+try:
+    system.place_order(avril, [(lavender, 1)])
+except ValueError as e:
+    print(f"Caught: {e}\n")
 
 print("--- All Plants (includes sold out) ---")
 system.display_all_plants()

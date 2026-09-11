@@ -110,6 +110,10 @@ For asignment 1 I kept each class in its own file. For assignment 2 I kept each 
 
 Even though whether a customer can place an order or collect an order is related to ordering, I felt it was more closely related to customer as each rule is unique to each customer.
 
+### The Same Plant Can Only Appear Once in an Order
+
+If someone tries to order the same plant twice, it will be rejected because we need to enforce the 10% discount. The other option would of been to merge the two lines but in this case I have chosen to apply the discount at order item level, not order level.
+
 ## Assumptions for Assignment 2
 
 ### Plant
@@ -119,6 +123,10 @@ Even though whether a customer can place an order or collect an order is related
 ### Customer
 
 - Staff and students are blocked when their current balance is already over $100, not when the new order would take them over.
+
+### Order
+
+- Order items cannot be updated after they are created. There would be a lot of downstream changes from changing an order item such as stock, discounts, order total and customer balance.
 
 ## Requirements Covered from Brent's Notes for Assignment 2
 

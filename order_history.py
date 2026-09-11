@@ -37,6 +37,19 @@ class OrderHistory:
             
         self.__order_list.append(order)
     
+    def get_pending_order_count(self, customer: Customer) -> int:
+        """
+        Count how many pending orders a customer currently has
+
+        :param customer: The customer to look up
+        :return: The number of orders for that customer with status pending
+        """
+        pending_count = 0
+        for order in self.__order_list:
+            if order.customer.cust_id == customer.cust_id and order.order_status == "pending":
+                pending_count += 1
+        return pending_count
+
     def get_customer_order_history(self, customer: Customer) -> list[Order]:
         """
         Retrieve all orders placed by a specific customer
