@@ -1,4 +1,4 @@
-from plant import Plant
+from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
 from customer import Customer
 from nursery_system import NurserySystem
 
@@ -11,18 +11,18 @@ system = NurserySystem()
 
 # ---------- Plants ----------
 
-# Add one plant from each category so the catalog and later order examples have stock to use.
+# Add one plant from each subclass so the catalog and later order examples have stock to use.
 print("--- Adding Plants ---")
-rose = Plant("Rose", "trees and shrubs", 15.99, 25)
+rose = TreeAndShrub("Rose", 15.99, 25)
 system.add_plant(rose)
 
-tomato = Plant("Tomato", "vegetable seedlings", 4.50, 50)
+tomato = VegetableSeedling("Tomato", 4.50, 50)
 system.add_plant(tomato)
 
-orchid = Plant("Orchid", "pot plants", 22.00, 8)
+orchid = PotPlant("Orchid", 22.00, 8, "medium")
 system.add_plant(orchid)
 
-lavender = Plant("Lavender", "perennials", 12.75, 30)
+lavender = Perennial("Lavender", 12.75, 30)
 system.add_plant(lavender)
 
 print("Plants added successfully\n")
@@ -36,21 +36,28 @@ print()
 # Price must be greater than 0. A negative price is rejected at creation.
 print("--- Error: Invalid plant price ---")
 try:
-    bad_plant = Plant("Daisy", "perennials", -5.00, 10)
+    bad_plant = Perennial("Daisy", -5.00, 10)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Category must be one of the four allowed values. "succulents" is not in that set.
-print("--- Error: Invalid plant category ---")
+# Plant is abstract, so a plant must be created as one of the four subclasses.
+print("--- Error: Cannot create a Plant directly ---")
 try:
-    bad_plant = Plant("Cactus", "succulents", 8.00, 15)
+    bad_plant = Plant("Cactus", 8.00, 15)
+except TypeError as e:
+    print(f"Caught: {e}\n")
+
+# Pot size must be small, medium, or large.
+print("--- Error: Invalid pot size ---")
+try:
+    bad_plant = PotPlant("Cactus", 8.00, 15, "tiny")
 except ValueError as e:
     print(f"Caught: {e}\n")
 
 # A plant cannot be created already sold out. Stock of 0 is only valid after an order.
 print("--- Error: Plant created with zero stock ---")
 try:
-    bad_plant = Plant("Fern", "pot plants", 10.00, 0)
+    bad_plant = PotPlant("Fern", 10.00, 0, "small")
 except ValueError as e:
     print(f"Caught: {e}\n")
 
@@ -155,7 +162,7 @@ except ValueError as e:
 # Echinacea has not been added to the catalog, so it cannot be ordered either.
 print("--- Error: Order for unregistered plant ---")
 try:
-    echinacea = Plant("Echinacea", "perennials", 9.99, 100)
+    echinacea = Perennial("Echinacea", 9.99, 100)
     system.place_order(avril, echinacea, 1)
 except ValueError as e:
     print(f"Caught: {e}\n")

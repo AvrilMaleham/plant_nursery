@@ -42,7 +42,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Order date is stored as a string in DD-MM-YYYY format. It defaults to today, can be set on creation or via a setter, and is validated as a real calendar date.
 - Status changes go through `collect_order()` and `cancel_order()` methods rather than a setter, for more control over the business rules.
 
-## Requirements Covered from Brent's Notes
+## Requirements Covered from Brent's Notes for Assignment 1
 
 ### Plant Requirements
 
@@ -99,3 +99,62 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 - Type hints on all method parameters and return values — included throughout
 - Comments where relevant — included throughout to explain design choices and assumptions (why IDs, setters vs methods, copies of lists, stock reaching zero only through orders, and so on)
 - Error conditions handled — `ValueError` and `TypeError` raised with descriptive messages for invalid inputs and illegal operations
+
+## Requirements Covered from Brent's Notes for Assignment 2
+
+### Multiple Plant Types
+
+- Four types of plants, trees and shrubs, perennials, pot plants, and vegetable seedlings.
+- Trees and shrubs, and perennials, are priced per plant.
+- Pot plants are priced by pot size, small, medium, or large.
+- Vegetable seedlings are priced per punnet. Seedlings per punnet depends on the type. Six is average.
+- The unit we sell something in is the same unit we count the stock in.
+
+A base class representing an individual plant available for sale, and derived classes to
+capture the different types of plants.
+
+### Multiple Customer Types
+
+- Three types of customers, university staff, university students, and general community.
+- Staff get 1% off their order total
+- Students get 5% off
+- Community customers get no discount.
+- Show customer's balance alongside the rest of their details
+- Show different types of customers separately, rather than everyone shown together as we have now.
+- Community customers can only have one order pending at a time, and they need to pay it off in full before it can be collected.
+- Staff and student balances can accumulate across several orders, and they can still collect their orders while owing money. If a staff or student's amount owing goes above $100, we should not let them order more until it is paid down.
+
+A base class representing a customer buying plants from the nursery, and derived classes
+to capture the different types of customers.
+
+### Orders Containing Multiple Plant Types (with each plant type represented as a separate order item)
+
+- One order can have multiple items on it.
+- Each item has its own plant, quantity, and the cost for that item's quantity
+- The existing 10% discount for ordering ten or more of the same plant still applies per item.
+- For pot plants, that means ten or more of the same plant in the same pot size, not a mix of sizes.
+- For seedlings, that means ten or more punnets of the same type, not individual seedlings.
+- Placing an order always adds the total to what they owe, and the balance stays until it is paid.
+- An order can be cancelled only while it is still pending and nothing has been paid toward it yet
+- Cancelling takes its total back off what the customer owes, same as the stock does.
+
+A class representing an order item, capturing one plant type within an order.
+A class representing an order made by a customer, bringing together one or more order items.
+
+### Payments, Including Support for Multiple Payment Types
+
+- Each payment has its own ID, recorded with the amount paid, which customer it was for, which order it was paying toward, and the date.
+- Customers have the option of either paying by credit card or debit card.
+- For a credit card we need the card number and the expiry date, and when paying there is a 1.5% surcharge added to the amount the customer pays.
+- For a debit card we just need the card number and the name of the bank it is with.
+- See all the payments made toward a specific order
+- A customer may settle an order with several payments, no single payment can be more than what is still owed on that order.
+
+A base class representing a payment made by a customer toward a specific order, and derived classes to capture the different types of payments
+A payment history class, the full list of payments across all our customers
+
+### Additional
+
+- Update the central nursery ordering system to include payments. Rememeber it is responsible for adding, searching, updating, and reporting across the different modules.
+- Where a class has derived classes, the base class should define the minimum data members and methods required by every type derived from it, and each derived class should override this behaviour where it needs to differ and add whatever else is specific to that type.
+- As part of your design, decide which classes should be abstract, and which should be concrete. For each abstract class, decide which methods should be abstract methods that every derived class must implement.
