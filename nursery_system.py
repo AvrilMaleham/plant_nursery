@@ -2,25 +2,28 @@ import uuid
 from plant import Plant
 from customer import Customer
 from order import Order
+from payment import Payment
 from plant_catalog import PlantCatalog
 from customer_directory import CustomerDirectory
 from order_history import OrderHistory
+from payment_history import PaymentHistory
 
 
 class NurserySystem:
     """
     A central system class that manages the collections of plants, customers,
-    and orders, and is responsible for adding, searching, updating, and
-    reporting across them.
+    orders, and payments, and is responsible for adding, searching, updating,
+    and reporting across them.
     """
 
     def __init__(self) -> None:
-        """Initialise a new NurserySystem with empty catalog, directory, and order history"""
-        # The three collections live here so the driver only talks to one object.
+        """Initialise a new NurserySystem with empty catalog, directory, order history, and payment history"""
+        # The collections live here so the driver only talks to one object.
         # Orders can then only be created for plants and customers that are already registered.
         self.__catalog = PlantCatalog()
         self.__directory = CustomerDirectory()
         self.__history = OrderHistory()
+        self.__payment_history = PaymentHistory()
 
     # ---------- Getters and Setters ----------
 
@@ -38,6 +41,11 @@ class NurserySystem:
     def history(self) -> OrderHistory:
         """Get the order history"""
         return self.__history
+
+    @property
+    def payment_history(self) -> PaymentHistory:
+        """Get the payment history"""
+        return self.__payment_history
 
     # ---------- Plant Methods ----------
 
@@ -125,12 +133,7 @@ class NurserySystem:
 
     # ---------- Order Methods ----------
 
-    def place_order(
-        self,
-        customer: Customer,
-        items: list[tuple[Plant, int]],
-        order_date: str = None,
-    ) -> Order:
+    def place_order(self, customer: Customer, items: list[tuple[Plant, int]], order_date: str = None) -> Order:
         """
         Place a new order after validating the customer and plants are registered by ID.
         The customer's place-order rules are checked before the order is created.
@@ -235,15 +238,100 @@ class NurserySystem:
         """Print a readable list of every order on record"""
         self.__history.display_all_orders()
 
+    # ---------- Payment Methods ----------
+
+    def record_payment(self, payment: Payment) -> None:
+        """
+        Record a payment toward an order. The amount is applied to the order and
+        taken off the customer balance. A payment is accepted whenever the order
+        still has a remaining balance.
+
+        :param payment: The Payment to record
+        :raises ValueError: If the customer or order is not in the system, the customer
+            does not own the order, or the amount is more than what is still owed
+        """
+        customer_found = False
+        for existing_customer in self.__directory.customer_list:
+            if existing_customer.cust_id == payment.customer.cust_id:
+                customer_found = True
+                break
+        if not customer_found:
+            raise ValueError("Customer is not registered in the system")
+
+        if payment.order not in self.__history.order_list:
+            raise ValueError("Order is not in the system")
+
+        if payment.customer.cust_id != payment.order.customer.cust_id:
+            raise ValueError("Payment customer must be the customer on the order")
+
+        # record_payment() on Order enforces amount > 0 and not more than remaining.
+        payment.order.record_payment(payment.amount)
+        self.__payment_history.add_payment(payment)
+
+    def find_payment(self, payment_id: uuid.UUID) -> Payment:
+        """
+        Search for a payment by its ID
+
+        :param payment_id: The UUID of the payment to find
+        :return: The matching Payment object
+        :raises ValueError: If no payment with that ID is found
+        """
+        for payment in self.__payment_history.payment_list:
+            if payment.payment_id == payment_id:
+                return payment
+        raise ValueError(f"No payment found with ID {payment_id}")
+
+    def get_customer_payments(self, customer: Customer) -> list[Payment]:
+        """
+        Retrieve all payments made by a specific customer
+
+        :param customer: The Customer to look up
+        :return: A list of Payment objects belonging to that customer
+        :raises ValueError: If customer is not registered in the system
+        """
+        customer_found = False
+        for existing_customer in self.__directory.customer_list:
+            if existing_customer.cust_id == customer.cust_id:
+                customer_found = True
+                break
+        if not customer_found:
+            raise ValueError("Customer is not registered in the system")
+        return self.__payment_history.get_customer_payments(customer)
+
+    def get_order_payments(self, order: Order) -> list[Payment]:
+        """
+        Retrieve all payments made toward a specific order
+
+        :param order: The Order to look up
+        :return: A list of Payment objects for that order
+        :raises ValueError: If the order is not in the system
+        """
+        if order not in self.__history.order_list:
+            raise ValueError("Order is not in the system")
+        return self.__payment_history.get_order_payments(order)
+
+    def display_all_payments(self) -> None:
+        """Print a readable list of every payment on record"""
+        self.__payment_history.display_all_payments()
+
+    def display_customer_payments(self, customer: Customer) -> None:
+        """Print a readable list of payments made by a specific customer"""
+        self.__payment_history.display_customer_payments(customer)
+
+    def display_order_payments(self, order: Order) -> None:
+        """Print a readable list of payments made toward a specific order"""
+        self.__payment_history.display_order_payments(order)
+
     # ---------- String Method ----------
 
     def __str__(self) -> str:
         """Returns a summary of the nursery system"""
         return (
-            "Nursery System: {} plants, {} customers, {} orders"
+            "Nursery System: {} plants, {} customers, {} orders, {} payments"
             .format(
                 len(self.__catalog.plant_list),
                 len(self.__directory.customer_list),
                 len(self.__history.order_list),
+                len(self.__payment_history.payment_list),
             )
         )

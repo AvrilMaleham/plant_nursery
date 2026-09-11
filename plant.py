@@ -237,13 +237,7 @@ class PotPlant(Plant):
 class VegetableSeedling(Plant):
     """Represents a subclass of plant called VegetableSeedling, priced and stocked per punnet"""
 
-    def __init__(
-        self,
-        plant_name: str,
-        plant_price: float,
-        plant_stock: int,
-        seedlings_per_punnet: int = 6,
-    ) -> None:
+    def __init__(self, plant_name: str, plant_price: float, plant_stock: int, seedlings_per_punnet: int = 6) -> None:
         """
         Initialise a new VegetableSeedling object
 

@@ -1,5 +1,6 @@
 from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
 from customer import Customer, StaffCustomer, StudentCustomer, CommunityCustomer
+from payment import Payment, CreditCardPayment, DebitCardPayment
 from nursery_system import NurserySystem
 
 # Driver for the nursery system. Each section shows a happy path first, then the
@@ -212,8 +213,7 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Community customers must pay in full before collecting. Payments are not in yet,
-# so this order still has a remaining balance.
+# Community customers must pay in full before collecting.
 print("--- Error: Collect unpaid community order ---")
 try:
     system.collect_order(order_community)
@@ -259,6 +259,100 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
+# ---------- Payments ----------
+
+# Payment is abstract, so a payment must be created as credit or debit.
+print("--- Error: Cannot create a Payment directly ---")
+try:
+    bad_payment = Payment(another_jane, order_community, 10.00)
+except TypeError as e:
+    print(f"Caught: {e}\n")
+
+# No single payment can be more than what is still owed on that order.
+print("--- Error: Payment more than remaining balance ---")
+try:
+    too_much = DebitCardPayment(
+        another_jane, order_community, 1000.00, "1111222233334444", "ANZ"
+    )
+    system.record_payment(too_much)
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# A payment must be from the customer who owns the order.
+print("--- Error: Payment from a different customer ---")
+try:
+    wrong_customer = DebitCardPayment(
+        avril, order_community, 10.00, "1111222233334444", "ANZ"
+    )
+    system.record_payment(wrong_customer)
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# A customer may settle an order with several payments. Debit has no surcharge,
+# so amount charged equals the amount applied to the order.
+print("--- Partial Debit Payment ---")
+community_debit = DebitCardPayment(
+    another_jane, order_community, 50.00, "1111222233334444", "ANZ"
+)
+system.record_payment(community_debit)
+print(f"Payment recorded: {community_debit}")
+print(f"Amount charged: {community_debit.amount_charged()}")
+print(f"Order remaining: {order_community.remaining_balance}")
+print(f"Community Jane balance: {another_jane.balance}\n")
+
+# An order can be cancelled only while nothing has been paid toward it yet.
+print("--- Error: Cancel order that has been paid toward ---")
+try:
+    system.cancel_order(order_community)
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Still unpaid, so community still cannot collect.
+print("--- Error: Collect community order after partial payment ---")
+try:
+    system.collect_order(order_community)
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Credit card adds a 1.5% surcharge to what the customer pays. The order is
+# reduced by the amount applied, not by the charged amount.
+print("--- Credit Card Payment for Remaining Balance ---")
+community_remaining = order_community.remaining_balance
+community_credit = CreditCardPayment(
+    another_jane, order_community, community_remaining,
+    "5555666677778888", "12-28",
+)
+system.record_payment(community_credit)
+print(f"Payment recorded: {community_credit}")
+print(f"Amount applied to order: {community_credit.amount}")
+print(f"Amount charged (with 1.5% surcharge): {community_credit.amount_charged()}")
+print(f"Order remaining: {order_community.remaining_balance}")
+print(f"Community Jane balance: {another_jane.balance}\n")
+
+# Paid in full, so the community order can be collected, and they can order again.
+print("--- Collect Paid Community Order ---")
+system.collect_order(order_community)
+print(f"Community order status: {order_community.order_status}\n")
+
+print("--- Community Order After Previous One Collected ---")
+order_community_2 = system.place_order(another_jane, [(lavender, 1)])
+print(f"Order placed: {order_community_2}\n")
+
+# Staff can pay at any time, including toward a collected order that still has a balance.
+# Paying this down lets Avril order again once owing is $100 or less.
+print("--- Staff Debit Payment to Pay Down Balance ---")
+avril_debit = DebitCardPayment(
+    avril, order3, 80.00, "9999000011112222", "Kiwibank"
+)
+system.record_payment(avril_debit)
+print(f"Payment recorded: {avril_debit}")
+print(f"Avril balance after payment: {avril.balance}\n")
+
+print("--- Staff Order After Paying Down Below $100 ---")
+order4 = system.place_order(avril, [(lavender, 1)])
+print(f"Order placed: {order4}")
+print(f"Avril balance after order: {avril.balance}\n")
+
 print("--- All Plants (includes sold out) ---")
 system.display_all_plants()
 print()
@@ -286,7 +380,10 @@ found_customer = system.find_customer(avril.cust_id)
 print(f"Found customer: {found_customer}")
 # Search for an order by its ID.
 found_order = system.find_order(order1.order_id)
-print(f"Found order: {found_order}\n")
+print(f"Found order: {found_order}")
+# Search for a payment by its ID.
+found_payment = system.find_payment(community_debit.payment_id)
+print(f"Found payment: {found_payment}\n")
 
 # ---------- Reporting ----------
 
@@ -302,6 +399,18 @@ print("--- All Orders ---")
 system.display_all_orders()
 print()
 
-# Short count of plants, customers, and orders currently in the system.
+print("--- Community Jane's Payments ---")
+system.display_customer_payments(another_jane)
+print()
+
+print("--- Payments Toward Community Order ---")
+system.display_order_payments(order_community)
+print()
+
+print("--- All Payments ---")
+system.display_all_payments()
+print()
+
+# Short count of plants, customers, orders, and payments currently in the system.
 print("--- System Summary ---")
 print(system)

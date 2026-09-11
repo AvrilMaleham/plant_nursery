@@ -114,6 +114,10 @@ Even though whether a customer can place an order or collect an order is related
 
 If someone tries to order the same plant twice, it will be rejected because we need to enforce the 10% discount. The other option would of been to merge the two lines but in this case I have chosen to apply the discount at order item level, not order level.
 
+### Payments Follow the existing Structure
+
+Payments follow the same structure as orders. `PaymentHistory` holds the list, `NurserySystem` checks the payment is allowed, and `Order.record_payment` is what actually changes the amount owed, the same way `collect_order()` and `cancel_order()` are what change status.
+
 ## Assumptions for Assignment 2
 
 ### Plant

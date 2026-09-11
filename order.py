@@ -14,12 +14,7 @@ OrderStatus = Literal["pending", "collected", "cancelled"]
 class Order:
     """Represents an order made by a customer, bringing together one or more order items"""
 
-    def __init__(
-        self,
-        customer: Customer,
-        items: list[tuple[Plant, int]],
-        order_date: Optional[str] = None,
-    ) -> None:
+    def __init__(self, customer: Customer, items: list[tuple[Plant, int]], order_date: Optional[str] = None) -> None:
         """
         Initialise a new Order object
 
