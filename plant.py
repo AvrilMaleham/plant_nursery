@@ -1,6 +1,7 @@
 import uuid
 from abc import ABC, abstractmethod
 from typing import Literal, get_args
+from exceptions import InsufficientStockError
 
 # Pot size is only used by PotPlant. A Literal is used so anything outside
 # small, medium, or large is rejected on creation.
@@ -105,14 +106,15 @@ class Plant(ABC):
         Reduce stock when an order goes through. Stock can never be below zero
 
         :param quantity: Quantity to remove from stock, in this plant's sale unit
-        :raises ValueError: If quantity is not positive, or there isn't enough stock to cover it
+        :raises ValueError: If quantity is not positive
+        :raises InsufficientStockError: If there isn't enough stock to cover it
         """
         if quantity <= 0:
             raise ValueError("Quantity to reduce must be greater than 0")
         # check_stock is used here so stock can never go below zero. Landing on 0 is allowed
         # because that is how a plant becomes unavailable after being fully ordered.
         if not self.check_stock(quantity):
-            raise ValueError(f"Insufficient stock: only {self.__plant_stock} available")
+            raise InsufficientStockError(f"Insufficient stock: only {self.__plant_stock} available")
         self.__plant_stock -= quantity
 
     def restore_stock(self, quantity: int) -> None:

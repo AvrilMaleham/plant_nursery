@@ -124,6 +124,10 @@ Payments follow the same structure as orders. `PaymentHistory` holds the list, `
 
 I used a pickle file rather than a text file or JSON because it is the simplest code wise. Saving the whole `NurserySystem` object keeps plants, customers, orders, and payments linked as the same objects when they are loaded again, without rebuilding them line by line.
 
+### Custom Exceptions in Their Own File
+
+Invalid order operations now raise custom exceptions instead of a generic `ValueError`, so the driver can catch the specific problem. I put them in `exceptions.py` rather than inside each class file so `Plant`, `Order`, and `NurserySystem` can all import the same types. The exception classes only store a message and pass it to `Exception`. They do not print.
+
 ## Assumptions for Assignment 2
 
 ### Plant

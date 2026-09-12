@@ -4,6 +4,7 @@ from datetime import datetime, date
 from customer import Customer
 from plant import Plant
 from order_item import OrderItem
+from exceptions import InsufficientStockError, OrderCannotBeCollectedError, OrderCannotBeCancelledError
 
 # The three statuses come from Brent's notes and are treated as a fixed set.
 # A Literal type is used so the allowed values are explicit even though status
@@ -22,7 +23,8 @@ class Order:
         :param items: A list of (plant, quantity) pairs, at least one, with no plant repeated
         :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
         :raises ValueError: If there are no items, a plant is repeated, a quantity is not greater
-            than 0, there is insufficient stock, or the order date is invalid
+            than 0, or the order date is invalid
+        :raises InsufficientStockError: If there is not enough stock for an item
         """
 
         # Customer type is already in the method signature. NurserySystem still confirms
@@ -40,7 +42,7 @@ class Order:
                 raise ValueError("Each plant can only appear once on an order")
             seen_plant_ids.append(plant.plant_id)
             if not plant.check_stock(quantity):
-                raise ValueError(f"Insufficient stock: only {plant.plant_stock} available")
+                raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
 
         # UUID keeps order IDs unique without a running counter.
         self.__order_id = uuid.uuid4()
@@ -162,32 +164,32 @@ class Order:
         """
         Update order status to collected
 
-        :raises ValueError: If the order has already been collected or cancelled, or the
-            customer is not allowed to collect it yet
+        :raises OrderCannotBeCollectedError: If the order has already been collected or cancelled,
+            or the customer is not allowed to collect it yet
         """
         if self.__order_status == "collected":
-            raise ValueError("Order has already been collected")
+            raise OrderCannotBeCollectedError("Order has already been collected")
         if self.__order_status == "cancelled":
-            raise ValueError("Unable to collect cancelled order")
+            raise OrderCannotBeCollectedError("Unable to collect cancelled order")
         # Pending is the only status that can move to collected. Whether this customer
         # may collect while still owing is answered by the customer subclass.
         if not self.__customer.can_collect_order(self.remaining_balance):
-            raise ValueError("Order must be paid in full before it can be collected")
+            raise OrderCannotBeCollectedError("Order must be paid in full before it can be collected")
         self.__order_status = "collected"
 
     def cancel_order(self) -> None:
         """
         Update order status to cancelled, restore stock, and take the total off the customer balance
 
-        :raises ValueError: If the order has already been collected or cancelled, or anything
-            has been paid toward it
+        :raises OrderCannotBeCancelledError: If the order has already been collected or cancelled,
+            or anything has been paid toward it
         """
         if self.__order_status == "collected":
-            raise ValueError("Cannot cancel order that has already been collected")
+            raise OrderCannotBeCancelledError("Cannot cancel order that has already been collected")
         if self.__order_status == "cancelled":
-            raise ValueError("Order has already been cancelled")
+            raise OrderCannotBeCancelledError("Order has already been cancelled")
         if self.__amount_paid > 0:
-            raise ValueError("Cannot cancel an order that has already been paid toward")
+            raise OrderCannotBeCancelledError("Cannot cancel an order that has already been paid toward")
         # Stock is restored on every item, and the order total comes off what they owe,
         # matching how placing the order added it.
         for item in self.__items:

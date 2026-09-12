@@ -1,4 +1,5 @@
 from plant import Plant
+from exceptions import InsufficientStockError
 
 
 class OrderItem:
@@ -11,12 +12,13 @@ class OrderItem:
 
         :param plant: The plant being ordered
         :param quantity: Quantity in that plant's sale unit, must be at least 1
-        :raises ValueError: If quantity is not greater than 0, or there is not enough stock
+        :raises ValueError: If quantity is not greater than 0
+        :raises InsufficientStockError: If there is not enough stock
         """
         if quantity < 1:
             raise ValueError("Minimum order is 1")
         if not plant.check_stock(quantity):
-            raise ValueError(f"Insufficient stock: only {plant.plant_stock} available")
+            raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
 
         self.__plant = plant
         self.__quantity = quantity

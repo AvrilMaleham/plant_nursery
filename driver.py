@@ -2,6 +2,12 @@ from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
 from customer import Customer, StaffCustomer, StudentCustomer, CommunityCustomer
 from payment import Payment, CreditCardPayment, DebitCardPayment
 from nursery_system import NurserySystem
+from exceptions import (
+    InsufficientStockError,
+    OrderNotAllowedError,
+    OrderCannotBeCollectedError,
+    OrderCannotBeCancelledError,
+)
 
 # Driver for the nursery system. Each section shows a happy path first, then the
 # error cases for that feature, so it is clear what the classes accept and reject.
@@ -195,7 +201,7 @@ except ValueError as e:
 print("--- Error: Order exceeding available stock ---")
 try:
     system.place_order(jane, [(orchid, 100)])
-except ValueError as e:
+except InsufficientStockError as e:
     print(f"Caught: {e}\n")
 
 # Mary is a valid Customer object but has not been added to the system, so the order is refused.
@@ -232,14 +238,14 @@ print(f"Community Jane balance: {another_jane.balance}\n")
 print("--- Error: Community customer already has a pending order ---")
 try:
     system.place_order(another_jane, [(lavender, 1)])
-except ValueError as e:
+except OrderNotAllowedError as e:
     print(f"Caught: {e}\n")
 
 # Community customers must pay in full before collecting.
 print("--- Error: Collect unpaid community order ---")
 try:
     system.collect_order(order_community)
-except ValueError as e:
+except OrderCannotBeCollectedError as e:
     print(f"Caught: {e}\n")
 
 # ---------- Order Status ----------
@@ -254,7 +260,7 @@ print(f"Avril still owing after collect: {avril.balance}\n")
 print("--- Error: Cancel collected order ---")
 try:
     system.cancel_order(order1)
-except ValueError as e:
+except OrderCannotBeCancelledError as e:
     print(f"Caught: {e}\n")
 
 # Cancelling a pending order restores the stock and takes the total back off the balance.
@@ -278,7 +284,7 @@ print(f"Avril balance after order: {avril.balance}\n")
 print("--- Error: Staff owing more than $100 ---")
 try:
     system.place_order(avril, [(lavender, 1)])
-except ValueError as e:
+except OrderNotAllowedError as e:
     print(f"Caught: {e}\n")
 
 # ---------- Payments ----------
@@ -326,14 +332,14 @@ print(f"Community Jane balance: {another_jane.balance}\n")
 print("--- Error: Cancel order that has been paid toward ---")
 try:
     system.cancel_order(order_community)
-except ValueError as e:
+except OrderCannotBeCancelledError as e:
     print(f"Caught: {e}\n")
 
 # Still unpaid, so community still cannot collect.
 print("--- Error: Collect community order after partial payment ---")
 try:
     system.collect_order(order_community)
-except ValueError as e:
+except OrderCannotBeCollectedError as e:
     print(f"Caught: {e}\n")
 
 # Credit card adds a 1.5% surcharge to what the customer pays. The order is
@@ -387,7 +393,7 @@ print()
 print("--- Error: Cancel already cancelled order ---")
 try:
     system.cancel_order(order2)
-except ValueError as e:
+except OrderCannotBeCancelledError as e:
     print(f"Caught: {e}\n")
 
 # ---------- Search ----------

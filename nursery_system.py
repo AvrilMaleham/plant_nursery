@@ -8,6 +8,7 @@ from plant_catalog import PlantCatalog
 from customer_directory import CustomerDirectory
 from order_history import OrderHistory
 from payment_history import PaymentHistory
+from exceptions import OrderNotAllowedError
 
 
 class NurserySystem:
@@ -157,8 +158,9 @@ class NurserySystem:
         :param items: A list of (plant, quantity) pairs to include on the order
         :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
         :return: The newly created Order object
-        :raises ValueError: If customer or a plant is not registered, the customer is not
-            allowed to place an order, there is insufficient stock, or the order date is invalid
+        :raises ValueError: If customer or a plant is not registered, or the order date is invalid
+        :raises OrderNotAllowedError: If the customer is not allowed to place an order
+        :raises InsufficientStockError: If there is not enough stock for an item
         """
         # Registration is checked by ID rather than `customer in list` / `plant in list`.
         # That way a Customer or Plant with the same ID is accepted even if it is not
@@ -184,7 +186,13 @@ class NurserySystem:
         # community uses how many pending orders they already have.
         pending_count = self.__history.get_pending_order_count(customer)
         if not customer.can_place_order(pending_count):
-            raise ValueError("Customer is not allowed to place a new order")
+            if customer.customer_type() == "community":
+                raise OrderNotAllowedError(
+                    "Community customers may only have one pending order at a time"
+                )
+            raise OrderNotAllowedError(
+                "Staff and students cannot place a new order while owing more than $100"
+            )
 
         # Creating the Order reduces stock and adds the total to the customer balance.
         order = Order(customer, items, order_date)
@@ -209,7 +217,8 @@ class NurserySystem:
         Mark an order as collected
 
         :param order: The Order to collect
-        :raises ValueError: If the order is not in the system, or cannot be collected
+        :raises ValueError: If the order is not in the system
+        :raises OrderCannotBeCollectedError: If the order cannot be collected
         """
         if order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
@@ -222,7 +231,8 @@ class NurserySystem:
         Cancel a pending unpaid order, restore the stock, and take the total off the customer balance
 
         :param order: The Order to cancel
-        :raises ValueError: If the order is not in the system, or cannot be cancelled
+        :raises ValueError: If the order is not in the system
+        :raises OrderCannotBeCancelledError: If the order cannot be cancelled
         """
         if order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
