@@ -1,3 +1,4 @@
+import pickle
 import uuid
 from plant import Plant
 from customer import Customer
@@ -16,14 +17,22 @@ class NurserySystem:
     and reporting across them.
     """
 
+    # The whole nursery is written to one pickle file.
+    DATA_FILE = "nursery_system.pkl"
+
     def __init__(self) -> None:
-        """Initialise a new NurserySystem with empty catalog, directory, order history, and payment history"""
+        """
+        Initialise a new NurserySystem. If a save file exists from a previous
+        run, plants, customers, orders, and payments are loaded from it.
+        Otherwise the catalog, directory, and histories start empty.
+        """
         # The collections live here so the driver only talks to one object.
         # Orders can then only be created for plants and customers that are already registered.
         self.__catalog = PlantCatalog()
         self.__directory = CustomerDirectory()
         self.__history = OrderHistory()
         self.__payment_history = PaymentHistory()
+        self.__loaded_from_file = self.load_from_file()
 
     # ---------- Getters and Setters ----------
 
@@ -46,6 +55,11 @@ class NurserySystem:
     def payment_history(self) -> PaymentHistory:
         """Get the payment history"""
         return self.__payment_history
+
+    @property
+    def loaded_from_file(self) -> bool:
+        """True if plants, customers, orders, and payments were restored from the save file"""
+        return self.__loaded_from_file
 
     # ---------- Plant Methods ----------
 
@@ -321,6 +335,38 @@ class NurserySystem:
     def display_order_payments(self, order: Order) -> None:
         """Print a readable list of payments made toward a specific order"""
         self.__payment_history.display_order_payments(order)
+
+    # ---------- Save and Load ----------
+
+    def save_to_file(self) -> None:
+        """
+        Write the whole nursery system to a pickle file, including plants,
+        customers, orders, and payments
+        """
+        with open(self.DATA_FILE, "wb") as file:
+            pickle.dump(self, file)
+        print("Nursery system saved successfully")
+
+    def load_from_file(self) -> bool:
+        """
+        Load a previously saved nursery system and replace this object's
+        plants, customers, orders, and payments with the loaded data.
+
+        :return: True if a save file was found and loaded, False if there is no file yet
+        """
+        try:
+            with open(self.DATA_FILE, "rb") as file:
+                loaded = pickle.load(file)
+        except FileNotFoundError:
+            # First run has nothing to restore, so the empty collections stay in place.
+            return False
+
+        self.__catalog = loaded.__catalog
+        self.__directory = loaded.__directory
+        self.__history = loaded.__history
+        self.__payment_history = loaded.__payment_history
+        print("Nursery system loaded successfully")
+        return True
 
     # ---------- String Method ----------
 

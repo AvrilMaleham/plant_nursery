@@ -7,8 +7,30 @@ from nursery_system import NurserySystem
 # error cases for that feature, so it is clear what the classes accept and reject.
 
 # Initialise the system. All plants, customers, and orders go through this object
-# rather than being stored in the driver itself.
+# rather than being stored in the driver itself. If a previous run saved data,
+# that file is loaded here so plants, customers, orders, and payments come back.
 system = NurserySystem()
+
+# A second run should show the saved nursery, not add another copy of the demo data.
+if system.loaded_from_file:
+    print("--- Loaded existing nursery data ---")
+    print(f"Delete {NurserySystem.DATA_FILE} to run the full demonstration again.\n")
+    print("--- All Plants ---")
+    system.display_all_plants()
+    print()
+    print("--- All Customers ---")
+    system.display_all_customers()
+    print()
+    print("--- All Orders ---")
+    system.display_all_orders()
+    print()
+    print("--- All Payments ---")
+    system.display_all_payments()
+    print()
+    print("--- System Summary ---")
+    print(system)
+    print()
+    raise SystemExit
 
 # ---------- Plants ----------
 
@@ -414,3 +436,6 @@ print()
 # Short count of plants, customers, orders, and payments currently in the system.
 print("--- System Summary ---")
 print(system)
+
+# Save everything so the next run can load it back in.
+system.save_to_file()

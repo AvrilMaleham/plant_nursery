@@ -10,6 +10,8 @@ This is a plant nursery management system that tracks plants, customers, and ord
 python driver.py
 ```
 
+The first run walks through the demonstration, then saves the nursery to `nursery_system.pkl`. A second run loads that file and prints the plants, customers, orders, and payments that were saved. Delete `nursery_system.pkl` to run the full demonstration from scratch.
+
 ## Design Decisions for Assignment 1
 
 ### Separation of Concerns
@@ -104,7 +106,7 @@ Each collection class (`PlantCatalog`, `CustomerDirectory`, `OrderHistory`) has 
 
 ### Inheritance Hierarchies in One File
 
-For asignment 1 I kept each class in its own file. For assignment 2 I kept each abstract base class in the same file as the subclasses that inherit from it, for example, `Plant` lives with `TreeAndShrub`, `Perennial`, `PotPlant`, and `VegetableSeedling`.
+For assignment 1 I kept each class in its own file. For assignment 2 I kept each abstract base class in the same file as the subclasses that inherit from it, for example, `Plant` lives with `TreeAndShrub`, `Perennial`, `PotPlant`, and `VegetableSeedling`. `Plant`, `Customer`, and `Payment` are the abstract bases, each one defines the shared data and the methods every subtype must implement, and the subclasses add what is specific to that type.
 
 ### Order Rules are in the Customer Class, not the Order Class
 
@@ -112,11 +114,15 @@ Even though whether a customer can place an order or collect an order is related
 
 ### The Same Plant Can Only Appear Once in an Order
 
-If someone tries to order the same plant twice, it will be rejected because we need to enforce the 10% discount. The other option would of been to merge the two lines but in this case I have chosen to apply the discount at order item level, not order level.
+If someone tries to order the same plant twice, it will be rejected because we need to enforce the 10% discount. The other option would have been to merge the two lines but in this case I have chosen to apply the discount at order item level, not order level.
 
-### Payments Follow the existing Structure
+### Payments Follow the Existing Structure
 
-Payments follow the same structure as orders. `PaymentHistory` holds the list, `NurserySystem` checks the payment is allowed, and `Order.record_payment` is what actually changes the amount owed, the same way `collect_order()` and `cancel_order()` are what change status.
+Payments follow the same structure as orders. `PaymentHistory` holds the list, `NurserySystem` checks the payment is allowed, and `Order.record_payment` is what actually changes the amount owed, the same way `collect_order()` and `cancel_order()` are what change status. `NurserySystem` is still the one place that adds, searches, updates, and reports across plants, customers, orders, and payments.
+
+### Saving with Pickle
+
+I used a pickle file rather than a text file or JSON because it is the simplest code wise. Saving the whole `NurserySystem` object keeps plants, customers, orders, and payments linked as the same objects when they are loaded again, without rebuilding them line by line.
 
 ## Assumptions for Assignment 2
 
@@ -142,9 +148,6 @@ Payments follow the same structure as orders. `PaymentHistory` holds the list, `
 - Vegetable seedlings are priced per punnet. Seedlings per punnet depends on the type. Six is average.
 - The unit we sell something in is the same unit we count the stock in.
 
-A base class representing an individual plant available for sale, and derived classes to
-capture the different types of plants.
-
 ### Multiple Customer Types
 
 - Three types of customers, university staff, university students, and general community.
@@ -156,10 +159,7 @@ capture the different types of plants.
 - Community customers can only have one order pending at a time, and they need to pay it off in full before it can be collected.
 - Staff and student balances can accumulate across several orders, and they can still collect their orders while owing money. If a staff or student's amount owing goes above $100, we should not let them order more until it is paid down.
 
-A base class representing a customer buying plants from the nursery, and derived classes
-to capture the different types of customers.
-
-### Orders Containing Multiple Plant Types (with each plant type represented as a separate order item)
+### Orders Containing Multiple Plant Types
 
 - One order can have multiple items on it.
 - Each item has its own plant, quantity, and the cost for that item's quantity
@@ -170,9 +170,6 @@ to capture the different types of customers.
 - An order can be cancelled only while it is still pending and nothing has been paid toward it yet
 - Cancelling takes its total back off what the customer owes, same as the stock does.
 
-A class representing an order item, capturing one plant type within an order.
-A class representing an order made by a customer, bringing together one or more order items.
-
 ### Payments, Including Support for Multiple Payment Types
 
 - Each payment has its own ID, recorded with the amount paid, which customer it was for, which order it was paying toward, and the date.
@@ -181,12 +178,3 @@ A class representing an order made by a customer, bringing together one or more 
 - For a debit card we just need the card number and the name of the bank it is with.
 - See all the payments made toward a specific order
 - A customer may settle an order with several payments, no single payment can be more than what is still owed on that order.
-
-A base class representing a payment made by a customer toward a specific order, and derived classes to capture the different types of payments
-A payment history class, the full list of payments across all our customers
-
-### Additional
-
-- Update the central nursery ordering system to include payments. Rememeber it is responsible for adding, searching, updating, and reporting across the different modules.
-- Where a class has derived classes, the base class should define the minimum data members and methods required by every type derived from it, and each derived class should override this behaviour where it needs to differ and add whatever else is specific to that type.
-- As part of your design, decide which classes should be abstract, and which should be concrete. For each abstract class, decide which methods should be abstract methods that every derived class must implement.
