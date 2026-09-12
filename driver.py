@@ -54,7 +54,16 @@ system.add_plant(orchid)
 lavender = Perennial("Lavender", 12.75, 30)
 system.add_plant(lavender)
 
-print("Plants added successfully\n")
+# A second pot plant with enough stock to show the 10% bulk discount for
+# ten or more of the same plant in the same pot size.
+fern = PotPlant("Fern", 8.00, 15, "small")
+system.add_plant(fern)
+
+print("Plants added successfully")
+# Tomato was created without seedlings_per_punnet, so it uses Brent's average of 6.
+print(f"Tomato sale unit: {tomato.sale_unit()}, seedlings per punnet: {tomato.seedlings_per_punnet}")
+print(f"Orchid sale unit: {orchid.sale_unit()}, pot size: {orchid.pot_size}")
+print(f"Rose sale unit: {rose.sale_unit()}\n")
 
 # Full catalog, including every plant just added. Later this is printed again after
 # a sold out orchid can be compared with the available list.
@@ -86,7 +95,14 @@ except ValueError as e:
 # A plant cannot be created already sold out. Stock of 0 is only valid after an order.
 print("--- Error: Plant created with zero stock ---")
 try:
-    bad_plant = PotPlant("Fern", 10.00, 0, "small")
+    bad_plant = PotPlant("Aloe", 10.00, 0, "small")
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Seedlings per punnet must be greater than 0 when it is supplied.
+print("--- Error: Invalid seedlings per punnet ---")
+try:
+    bad_plant = VegetableSeedling("Basil", 3.50, 20, seedlings_per_punnet=0)
 except ValueError as e:
     print(f"Caught: {e}\n")
 
@@ -190,6 +206,27 @@ print(f"Expected order total: $48.60 x 0.95 = ${48.60 * 0.95:.2f}")
 print(f"Actual total: ${order2.order_total}")
 print(f"Jane balance after order: {jane.balance}\n")
 
+# 10 or more of the same pot plant in the same pot size also gets 10% off that item.
+order_ferns = system.place_order(jane, [(fern, 10)])
+print(f"Order placed (10 small ferns, item 10% then student 5%): {order_ferns}")
+print(f"Expected item cost: 10 x $8.00 x 0.9 = ${10 * 8.00 * 0.9:.2f}")
+print(f"Expected order total: $72.00 x 0.95 = ${72.00 * 0.95:.2f}")
+print(f"Actual total: ${order_ferns.order_total}")
+print(f"Jane balance after fern order: {jane.balance}\n")
+
+# Jane now owes more than $100 across two pending orders, so students cannot order more.
+print("--- Error: Student owing more than $100 ---")
+try:
+    system.place_order(jane, [(lavender, 1)])
+except OrderNotAllowedError as e:
+    print(f"Caught: {e}\n")
+
+# Students may still collect while owing, the same rule as staff.
+print("--- Collecting Student Order While Owing ---")
+system.collect_order(order_ferns)
+print(f"Fern order status: {order_ferns.order_status}")
+print(f"Jane still owing after collect: {jane.balance}\n")
+
 # Quantity of 0 is not a valid order item.
 print("--- Error: Order for zero plants ---")
 try:
@@ -200,7 +237,7 @@ except ValueError as e:
 # Ordering more than current stock is rejected so stock can never go below zero.
 print("--- Error: Order exceeding available stock ---")
 try:
-    system.place_order(jane, [(orchid, 100)])
+    system.place_order(avril, [(orchid, 100)])
 except InsufficientStockError as e:
     print(f"Caught: {e}\n")
 
@@ -232,6 +269,7 @@ except ValueError as e:
 print("--- Multi-item Community Order ---")
 order_community = system.place_order(another_jane, [(rose, 4), (orchid, 2), (tomato, 1)])
 print(f"Order placed: {order_community}")
+print("Community customers get 0% off the order total, so the total is just the item costs.")
 print(f"Community Jane balance: {another_jane.balance}\n")
 
 # Community customers can only have one pending order at a time.
@@ -255,6 +293,13 @@ print("--- Collecting Staff Order ---")
 system.collect_order(order1)
 print(f"Order 1 status: {order1.order_status}")
 print(f"Avril still owing after collect: {avril.balance}\n")
+
+# Once collected, collecting again is also rejected.
+print("--- Error: Collect already collected order ---")
+try:
+    system.collect_order(order1)
+except OrderCannotBeCollectedError as e:
+    print(f"Caught: {e}\n")
 
 # Once collected, an order can no longer be cancelled.
 print("--- Error: Cancel collected order ---")
@@ -294,6 +339,25 @@ print("--- Error: Cannot create a Payment directly ---")
 try:
     bad_payment = Payment(another_jane, order_community, 10.00)
 except TypeError as e:
+    print(f"Caught: {e}\n")
+
+# Credit card payments need both a card number and an expiry date.
+print("--- Error: Credit card missing expiry date ---")
+try:
+    bad_payment = CreditCardPayment(
+        another_jane, order_community, 10.00, "5555666677778888", ""
+    )
+except ValueError as e:
+    print(f"Caught: {e}\n")
+
+# Payment dates use the same DD-MM-YYYY calendar check as orders.
+print("--- Error: Invalid payment date ---")
+try:
+    bad_payment = DebitCardPayment(
+        another_jane, order_community, 10.00, "1111222233334444", "ANZ",
+        payment_date="31-02-2026",
+    )
+except ValueError as e:
     print(f"Caught: {e}\n")
 
 # No single payment can be more than what is still owed on that order.

@@ -1,5 +1,6 @@
 import pickle
 import uuid
+from typing import Optional
 from plant import Plant
 from customer import Customer
 from order import Order
@@ -148,7 +149,7 @@ class NurserySystem:
 
     # ---------- Order Methods ----------
 
-    def place_order(self, customer: Customer, items: list[tuple[Plant, int]], order_date: str = None) -> Order:
+    def place_order(self, customer: Customer, items: list[tuple[Plant, int]], order_date: Optional[str] = None) -> Order:
         """
         Place a new order after validating the customer and plants are registered by ID.
         The customer's place-order rules are checked before the order is created.
@@ -339,11 +340,19 @@ class NurserySystem:
         self.__payment_history.display_all_payments()
 
     def display_customer_payments(self, customer: Customer) -> None:
-        """Print a readable list of payments made by a specific customer"""
+        """
+        Print a readable list of payments made by a specific customer
+
+        :param customer: The customer to look up
+        """
         self.__payment_history.display_customer_payments(customer)
 
     def display_order_payments(self, order: Order) -> None:
-        """Print a readable list of payments made toward a specific order"""
+        """
+        Print a readable list of payments made toward a specific order
+
+        :param order: The order to look up
+        """
         self.__payment_history.display_order_payments(order)
 
     # ---------- Save and Load ----------

@@ -1,5 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 class Customer(ABC):
@@ -56,12 +57,12 @@ class Customer(ABC):
         self.__cust_name = value
 
     @property
-    def cust_email(self) -> str:
+    def cust_email(self) -> Optional[str]:
         """Get the customer email"""
         return self.__cust_email
 
     @cust_email.setter
-    def cust_email(self, value: str) -> None:
+    def cust_email(self, value: Optional[str]) -> None:
         """
         Update the customer email. At least one contact method must remain.
 
@@ -76,12 +77,12 @@ class Customer(ABC):
         self.__cust_email = new_email
 
     @property
-    def cust_phone(self) -> str:
+    def cust_phone(self) -> Optional[str]:
         """Get the customer phone number"""
         return self.__cust_phone
 
     @cust_phone.setter
-    def cust_phone(self, value: str) -> None:
+    def cust_phone(self, value: Optional[str]) -> None:
         """
         Update the customer phone number. At least one contact method must remain.
 
