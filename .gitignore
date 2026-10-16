@@ -203,9 +203,6 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
-# Saved nursery data (created when the program exits)
-nursery_system.pkl
-
 # Ruff stuff:
 .ruff_cache/
 
