@@ -2,8 +2,8 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
 from datetime import datetime, date
-from customer import Customer
-from order import Order
+from .customer import Customer
+from .order import Order
 
 # Added to what the customer pays. Debit cards have no surcharge.
 CREDIT_CARD_SURCHARGE_RATE = 0.015

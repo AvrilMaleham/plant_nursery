@@ -1,10 +1,10 @@
 import uuid
 from typing import Literal, Optional
 from datetime import datetime, date
-from customer import Customer
-from plant import Plant
-from order_item import OrderItem
-from exceptions import OrderCannotBeCollectedError, OrderCannotBeCancelledError
+from .customer import Customer
+from .plant import Plant
+from .order_item import OrderItem
+from .exceptions import OrderCannotBeCollectedError, OrderCannotBeCancelledError
 
 # The three statuses come from Brent's notes and are treated as a fixed set.
 # A Literal type is used so the allowed values are explicit even though status

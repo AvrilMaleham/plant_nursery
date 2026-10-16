@@ -1,5 +1,5 @@
-from order import Order
-from customer import Customer
+from .order import Order
+from .customer import Customer
 
 
 class OrderHistory:

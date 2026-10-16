@@ -1,5 +1,5 @@
-from plant import Plant
-from exceptions import InsufficientStockError
+from .plant import Plant
+from .exceptions import InsufficientStockError
 
 # Ten or more of the same plant on one line gets this discount.
 BULK_DISCOUNT_QUANTITY = 10

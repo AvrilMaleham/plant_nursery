@@ -1,7 +1,7 @@
 import uuid
 from abc import ABC, abstractmethod
 from typing import Literal, get_args
-from exceptions import InsufficientStockError
+from .exceptions import InsufficientStockError
 
 # Pot size is only used by PotPlant. A Literal is used so anything outside
 # small, medium, or large is rejected on creation.

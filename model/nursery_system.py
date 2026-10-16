@@ -1,15 +1,15 @@
 import pickle
 import uuid
 from typing import Optional
-from plant import Plant
-from customer import Customer
-from order import Order
-from payment import Payment
-from plant_catalog import PlantCatalog
-from customer_directory import CustomerDirectory
-from order_history import OrderHistory
-from payment_history import PaymentHistory
-from exceptions import OrderNotAllowedError
+from .plant import Plant
+from .customer import Customer
+from .order import Order
+from .payment import Payment
+from .plant_catalog import PlantCatalog
+from .customer_directory import CustomerDirectory
+from .order_history import OrderHistory
+from .payment_history import PaymentHistory
+from .exceptions import OrderNotAllowedError
 
 
 class NurserySystem:

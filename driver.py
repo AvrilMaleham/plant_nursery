@@ -1,13 +1,13 @@
-from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
-from customer import (
+from model.plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
+from model.customer import (
     Customer,
     StaffCustomer,
     StudentCustomer,
     CommunityCustomer,
 )
-from payment import Payment, CreditCardPayment, DebitCardPayment
-from nursery_system import NurserySystem
-from exceptions import (
+from model.payment import Payment, CreditCardPayment, DebitCardPayment
+from model.nursery_system import NurserySystem
+from model.exceptions import (
     InsufficientStockError,
     OrderNotAllowedError,
     OrderCannotBeCollectedError,
