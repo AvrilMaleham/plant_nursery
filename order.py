@@ -63,8 +63,8 @@ class Order:
         # New orders always start as pending. Status is not settable directly
         # after this.
         self.__order_status: OrderStatus = "pending"
-        self.__customer = customer
-        self.__items = []
+        self.__customer: Customer = customer
+        self.__items: list[OrderItem] = []
         for plant, quantity in items:
             self.__items.append(OrderItem(plant, quantity))
 

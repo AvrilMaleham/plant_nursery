@@ -8,7 +8,7 @@ class OrderHistory:
     def __init__(self) -> None:
         """Initialise a new OrderHistory object"""
 
-        self.__order_list = []
+        self.__order_list: list[Order] = []
 
     # ---------- Getters and Setters ----------
 

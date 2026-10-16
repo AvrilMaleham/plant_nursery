@@ -31,10 +31,10 @@ class NurserySystem:
         # The collections live here so the driver only talks to one object.
         # Orders can then only be created for plants and customers that are
         # already registered.
-        self.__catalog = PlantCatalog()
-        self.__directory = CustomerDirectory()
-        self.__history = OrderHistory()
-        self.__payment_history = PaymentHistory()
+        self.__catalog: PlantCatalog = PlantCatalog()
+        self.__directory: CustomerDirectory = CustomerDirectory()
+        self.__history: OrderHistory = OrderHistory()
+        self.__payment_history: PaymentHistory = PaymentHistory()
         self.__loaded_from_file = self.load_from_file()
 
     # ---------- Getters and Setters ----------

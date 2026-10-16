@@ -7,7 +7,7 @@ class CustomerDirectory:
     def __init__(self) -> None:
         """Initialise a new CustomerDirectory object"""
 
-        self.__customer_list = []
+        self.__customer_list: list[Customer] = []
 
     # ---------- Getters and Setters ----------
 

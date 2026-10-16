@@ -9,7 +9,7 @@ class PaymentHistory:
     def __init__(self) -> None:
         """Initialise a new PaymentHistory object"""
 
-        self.__payment_list = []
+        self.__payment_list: list[Payment] = []
 
     # ---------- Getters and Setters ----------
 

@@ -7,7 +7,7 @@ class PlantCatalog:
     def __init__(self) -> None:
         """Initialise a new PlantCatalog object"""
 
-        self.__plant_list = []
+        self.__plant_list: list[Plant] = []
 
     # ---------- Getters and Setters ----------
 

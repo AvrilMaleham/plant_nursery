@@ -26,7 +26,7 @@ class OrderItem:
         # whether it is created on its own or as part of an order.
         OrderItem.validate(plant, quantity)
 
-        self.__plant = plant
+        self.__plant: Plant = plant
         self.__quantity = quantity
         self.__item_cost = self.__calculate_cost()
         plant.reduce_stock(quantity)

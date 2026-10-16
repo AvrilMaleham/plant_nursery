@@ -46,8 +46,8 @@ class Payment(ABC):
 
         # UUID keeps payment IDs unique without a running counter.
         self.__payment_id = uuid.uuid4()
-        self.__customer = customer
-        self.__order = order
+        self.__customer: Customer = customer
+        self.__order: Order = order
         self.__amount = round(amount, 2)
         self.__card_number = card_number
         if payment_date is None:
