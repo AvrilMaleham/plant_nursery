@@ -1,14 +1,20 @@
-from .order import Order
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from .customer import Customer
+from .order import Order
 
 
 class OrderHistory:
     """Record of all orders placed at the nursery"""
 
-    def __init__(self) -> None:
-        """Initialise a new OrderHistory object"""
+    def __init__(self, session: Session) -> None:
+        """
+        Initialise a new OrderHistory object
 
-        self.__order_list: list[Order] = []
+        :param session (Session): The database session that stores the orders
+        """
+        self.__session = session
 
     # ---------- Getters and Setters ----------
 
@@ -19,10 +25,11 @@ class OrderHistory:
 
         :return (list[Order]): The list of orders
         """
-        # A copy is returned so callers cannot change the internal list
-        # directly. New orders still have to go through add_order(), which
+        # A new list is returned so callers cannot change the history by
+        # editing it. New orders still have to go through add_order(), which
         # checks for duplicate IDs.
-        return self.__order_list.copy()
+        orders = self.__session.scalars(select(Order)).all()
+        return list(orders)
 
     # ---------- Methods ----------
 
@@ -37,12 +44,12 @@ class OrderHistory:
         if not isinstance(order, Order):
             raise TypeError("Only orders may be added to the list")
 
-        for existing_order in self.__order_list:
-            if existing_order.order_id == order.order_id:
-                raise ValueError(
-                    f"Order with ID {order.order_id} is already in the list")
+        existing_order = self.__session.get(Order, order.order_id)
+        if existing_order is not None:
+            raise ValueError(
+                f"Order with ID {order.order_id} is already in the list")
 
-        self.__order_list.append(order)
+        self.__session.add(order)
 
     def get_pending_order_count(self, customer: Customer) -> int:
         """
@@ -53,7 +60,7 @@ class OrderHistory:
             pending
         """
         pending_count = 0
-        for order in self.__order_list:
+        for order in self.order_list:
             if (
                 order.customer.cust_id == customer.cust_id
                 and order.order_status == "pending"
@@ -73,19 +80,20 @@ class OrderHistory:
         # Match on customer ID rather than the Customer object itself, so
         # history still works if the caller holds a different Python object
         # with the same ID.
-        for order in self.__order_list:
+        for order in self.order_list:
             if order.customer.cust_id == customer.cust_id:
                 matching_orders.append(order)
         return matching_orders
 
     # display_all_orders exists alongside the order_list getter so printing
-    # stays inside the history. The driver can call one method instead of
+    # stays inside the history. A caller can use one method instead of
     # looping itself.
     def display_all_orders(self) -> None:
         """Print a readable list of every order in the list"""
-        if not self.__order_list:
+        orders = self.order_list
+        if not orders:
             print("No orders yet")
             return
 
-        for order in self.__order_list:
+        for order in orders:
             print(order)

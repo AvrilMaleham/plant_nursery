@@ -1,13 +1,19 @@
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from .plant import Plant
 
 
 class PlantCatalog:
     """A complete catalog of plants available at the nursery"""
 
-    def __init__(self) -> None:
-        """Initialise a new PlantCatalog object"""
+    def __init__(self, session: Session) -> None:
+        """
+        Initialise a new PlantCatalog object
 
-        self.__plant_list: list[Plant] = []
+        :param session (Session): The database session that stores the plants
+        """
+        self.__session = session
 
     # ---------- Getters and Setters ----------
 
@@ -18,10 +24,11 @@ class PlantCatalog:
 
         :return (list[Plant]): The list of plants
         """
-        # A copy is returned so callers cannot append to or clear the internal
-        # list. New plants still have to go through catalog_plant(), which
-        # checks for duplicate IDs.
-        return self.__plant_list.copy()
+        # A new list is returned so callers cannot change what the next query
+        # returns by appending to it. New plants still have to go through
+        # catalog_plant(), which checks for duplicate IDs.
+        plants = self.__session.scalars(select(Plant)).all()
+        return list(plants)
 
     # ---------- Methods ----------
 
@@ -37,17 +44,16 @@ class PlantCatalog:
         if not isinstance(plant, Plant):
             raise TypeError("Only plants may be added to the catalog")
 
-        for existing_plant in self.__plant_list:
-            # Duplicate check is by plant ID, not object identity, so the same
-            # plant cannot be catalogued twice even if it is held in a
-            # different variable.
-            if existing_plant.plant_id == plant.plant_id:
-                raise ValueError(
-                    f"Plant with ID {plant.plant_id} "
-                    "is already in the catalog"
-                )
+        existing_plant = self.__session.get(Plant, plant.plant_id)
+        # Duplicate check is by plant ID, not object identity, so the same
+        # plant cannot be catalogued twice even if it is held in a different
+        # variable.
+        if existing_plant is not None:
+            raise ValueError(
+                f"Plant with ID {plant.plant_id} is already in the catalog"
+            )
 
-        self.__plant_list.append(plant)
+        self.__session.add(plant)
 
     def get_available_plants(self) -> list[Plant]:
         """
@@ -60,23 +66,24 @@ class PlantCatalog:
         # Available means currently in stock, not just present in the catalog.
         # Sold out plants (stock of 0 after an order) stay in the catalog but
         # are left out here.
-        for plant in self.__plant_list:
+        for plant in self.plant_list:
             if plant.plant_stock > 0:
                 available_plants.append(plant)
         return available_plants
 
     # display_all_plants exists alongside the plant_list getter so printing
-    # stays inside the catalog. The driver can call one method instead of
+    # stays inside the catalog. A caller can use one method instead of
     # looping itself. This prints every plant, including sold out ones.
     # display_available_plants() is the filtered list of what can actually be
     # sold right now.
     def display_all_plants(self) -> None:
         """Print a readable list of every plant in the catalog"""
-        if not self.__plant_list:
+        plants = self.plant_list
+        if not plants:
             print("No plants in the catalog")
             return
 
-        for plant in self.__plant_list:
+        for plant in plants:
             print(plant)
 
     def display_available_plants(self) -> None:

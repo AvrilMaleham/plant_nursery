@@ -1,6 +1,10 @@
 import uuid
-from abc import ABC, abstractmethod
 from typing import Optional
+
+from sqlalchemy import CheckConstraint, Numeric, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
+
+from .base import Base
 
 # Staff and students cannot place another order while owing more than this.
 CREDIT_LIMIT = 100
@@ -11,10 +15,69 @@ STUDENT_DISCOUNT_RATE = 0.05
 COMMUNITY_DISCOUNT_RATE = 0.0
 
 
-class Customer(ABC):
+class Customer(Base):
     """
     An abstract class representing a customer buying plants from the nursery
     """
+
+    __tablename__ = "customers"
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="ck_customers_balance"),
+        CheckConstraint(
+            "customer_type IN ('staff', 'student', 'community')",
+            name="ck_customers_type",
+        ),
+    )
+
+    # Single-table inheritance. Staff, students, and community customers store
+    # the same columns. kind is written to the customer_type column.
+    _cust_id: Mapped[uuid.UUID] = mapped_column(
+        "cust_id", Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    kind: Mapped[str] = mapped_column(
+        "customer_type", String(20), nullable=False
+    )
+    _cust_name: Mapped[str] = mapped_column(
+        "cust_name", String(200), nullable=False
+    )
+    _cust_email: Mapped[Optional[str]] = mapped_column(
+        "cust_email", String(200), nullable=True
+    )
+    _cust_phone: Mapped[Optional[str]] = mapped_column(
+        "cust_phone", String(50), nullable=True
+    )
+    _balance: Mapped[float] = mapped_column(
+        "balance", Numeric(10, 2), nullable=False, default=0
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "kind",
+        "polymorphic_abstract": True,
+    }
+
+    def __new__(cls, *args: object, **kwargs: object) -> "Customer":
+        """
+        Block a direct Customer or UniversityCustomer. SQLAlchemy raises its
+        own error for a polymorphic abstract class before __init__ runs, so
+        the check has to happen here to stay a TypeError.
+
+        :raises TypeError: If Customer or UniversityCustomer is created
+            directly
+        """
+        if cls.__mapper_args__.get("polymorphic_abstract"):
+            if cls is Customer:
+                message = (
+                    "Can't instantiate abstract class Customer with abstract "
+                    "methods can_collect_order, can_place_order, "
+                    "customer_type, discount_rate"
+                )
+            else:
+                message = (
+                    "Can't instantiate abstract class UniversityCustomer "
+                    "with abstract methods customer_type, discount_rate"
+                )
+            raise TypeError(message)
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -32,7 +95,6 @@ class Customer(ABC):
         :raises ValueError: If there is not at least one of cust_email or
             cust_phone
         """
-
         # At least one contact method is required so the nursery can still
         # reach the customer.
         if not cust_email and not cust_phone:
@@ -41,15 +103,15 @@ class Customer(ABC):
 
         # UUID is used so two customers with the same name still have distinct
         # IDs.
-        self.__cust_id = uuid.uuid4()
-        self.__cust_name = cust_name
+        self._cust_id = uuid.uuid4()
+        self._cust_name = cust_name
         # Empty strings are stored as None so a missing email or phone is
         # consistent.
-        self.__cust_email = cust_email if cust_email else None
-        self.__cust_phone = cust_phone if cust_phone else None
+        self._cust_email = cust_email if cust_email else None
+        self._cust_phone = cust_phone if cust_phone else None
         # Every customer starts owing nothing. Placing an order adds to this,
         # paying or cancelling takes it back down.
-        self.__balance = 0.0
+        self._balance = 0.0
 
     # ---------- Getters and Setters ----------
     # ID is generated once and has no setter, so it cannot be changed later.
@@ -66,7 +128,7 @@ class Customer(ABC):
 
         :return (uuid.UUID): The unique customer ID
         """
-        return self.__cust_id
+        return self._cust_id
 
     @property
     def cust_name(self) -> str:
@@ -75,7 +137,7 @@ class Customer(ABC):
 
         :return (str): The customer name
         """
-        return self.__cust_name
+        return self._cust_name
 
     @cust_name.setter
     def cust_name(self, value: str) -> None:
@@ -84,7 +146,7 @@ class Customer(ABC):
 
         :param value (str): New customer name
         """
-        self.__cust_name = value
+        self._cust_name = value
 
     @property
     def cust_email(self) -> Optional[str]:
@@ -93,7 +155,7 @@ class Customer(ABC):
 
         :return (Optional[str]): The customer email
         """
-        return self.__cust_email
+        return self._cust_email
 
     @cust_email.setter
     def cust_email(self, value: Optional[str]) -> None:
@@ -108,10 +170,10 @@ class Customer(ABC):
         new_email = value if value else None
         # Reject clearing email if there is no phone, otherwise the customer
         # would have no way to be contacted.
-        if not new_email and not self.__cust_phone:
+        if not new_email and not self._cust_phone:
             raise ValueError(
                 "Please provide at least an email or a phone number")
-        self.__cust_email = new_email
+        self._cust_email = new_email
 
     @property
     def cust_phone(self) -> Optional[str]:
@@ -120,7 +182,7 @@ class Customer(ABC):
 
         :return (Optional[str]): The customer phone number
         """
-        return self.__cust_phone
+        return self._cust_phone
 
     @cust_phone.setter
     def cust_phone(self, value: Optional[str]) -> None:
@@ -135,10 +197,10 @@ class Customer(ABC):
         """
         new_phone = value if value else None
         # Same rule as the email setter: one of email or phone must remain.
-        if not self.__cust_email and not new_phone:
+        if not self._cust_email and not new_phone:
             raise ValueError(
                 "Please provide at least an email or a phone number")
-        self.__cust_phone = new_phone
+        self._cust_phone = new_phone
 
     @property
     def balance(self) -> float:
@@ -147,7 +209,7 @@ class Customer(ABC):
 
         :return (float): The amount the customer currently owes
         """
-        return self.__balance
+        return float(self._balance)
 
     # ---------- Methods ----------
 
@@ -160,7 +222,7 @@ class Customer(ABC):
         """
         if amount <= 0:
             raise ValueError("Amount to add must be greater than 0")
-        self.__balance = round(self.__balance + amount, 2)
+        self._balance = round(self.balance + amount, 2)
 
     def reduce_balance(self, amount: float) -> None:
         """
@@ -174,9 +236,9 @@ class Customer(ABC):
         """
         if amount <= 0:
             raise ValueError("Amount to reduce must be greater than 0")
-        if amount > self.__balance:
+        if amount > self.balance:
             raise ValueError("Cannot reduce balance below 0")
-        self.__balance = round(self.__balance - amount, 2)
+        self._balance = round(self.balance - amount, 2)
 
     def apply_discount(self, subtotal: float) -> float:
         """
@@ -186,29 +248,25 @@ class Customer(ABC):
         :return (float): The total after the customer discount, rounded to 2
             decimal places
         """
-        # discount_rate() is abstract, so whichever subclass this object really
-        # is supplies the rate.
+        # discount_rate() is supplied by the concrete subclass.
         return round(subtotal * (1 - self.discount_rate()), 2)
 
-    @abstractmethod
     def customer_type(self) -> str:
         """
         Return the type of customer
 
         :return (str): The type of customer
         """
-        pass
+        return self.kind
 
-    @abstractmethod
     def discount_rate(self) -> float:
         """
         Return this customer's discount rate as a decimal
 
         :return (float): This customer's discount rate as a decimal
         """
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def can_place_order(self, pending_order_count: int) -> bool:
         """
         Return whether this customer is allowed to place a new order
@@ -217,9 +275,8 @@ class Customer(ABC):
             already has
         :return (bool): True if a new order is allowed, else False
         """
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def can_collect_order(self, amount_owing_on_order: float) -> bool:
         """
         Return whether this customer is allowed to collect an order
@@ -228,7 +285,7 @@ class Customer(ABC):
             order
         :return (bool): True if the order may be collected, else False
         """
-        pass
+        raise NotImplementedError
 
     def __str__(self) -> str:
         """
@@ -240,8 +297,8 @@ class Customer(ABC):
             "Customer ID: {}, Customer Type: {}, Customer Name: {},"
             " Customer Email: {}, Customer Phone Number: {}, Balance: {}"
             .format(
-                self.__cust_id, self.customer_type(), self.__cust_name,
-                self.__cust_email, self.__cust_phone, self.__balance,
+                self.cust_id, self.customer_type(), self.cust_name,
+                self.cust_email, self.cust_phone, self.balance,
             )
         )
 
@@ -251,6 +308,8 @@ class UniversityCustomer(Customer):
     An abstract subclass of Customer for university staff and students, who
     share ordering rules
     """
+
+    __mapper_args__ = {"polymorphic_abstract": True}
 
     def can_place_order(self, pending_order_count: int) -> bool:
         """
@@ -279,13 +338,17 @@ class StaffCustomer(UniversityCustomer):
     order total
     """
 
+    TYPE_NAME = "staff"
+
+    __mapper_args__ = {"polymorphic_identity": TYPE_NAME}
+
     def customer_type(self) -> str:
         """
         Return the type of customer
 
         :return (str): The type of customer
         """
-        return "staff"
+        return self.TYPE_NAME
 
     def discount_rate(self) -> float:
         """
@@ -302,13 +365,17 @@ class StudentCustomer(UniversityCustomer):
     order total
     """
 
+    TYPE_NAME = "student"
+
+    __mapper_args__ = {"polymorphic_identity": TYPE_NAME}
+
     def customer_type(self) -> str:
         """
         Return the type of customer
 
         :return (str): The type of customer
         """
-        return "student"
+        return self.TYPE_NAME
 
     def discount_rate(self) -> float:
         """
@@ -325,13 +392,17 @@ class CommunityCustomer(Customer):
     discount
     """
 
+    TYPE_NAME = "community"
+
+    __mapper_args__ = {"polymorphic_identity": TYPE_NAME}
+
     def customer_type(self) -> str:
         """
         Return the type of customer
 
         :return (str): The type of customer
         """
-        return "community"
+        return self.TYPE_NAME
 
     def discount_rate(self) -> float:
         """

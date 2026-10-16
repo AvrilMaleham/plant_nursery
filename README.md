@@ -6,11 +6,33 @@ This is a plant nursery management system that tracks plants, customers, orders,
 
 ## How to Run
 
+PostgreSQL must already be installed and running on this computer, on port 5432. The installer asks you to choose a password. pgAdmin logs in with that same password.
+
+From the project folder, install the Python packages:
+
 ```bash
-python driver.py
+pip install -r requirements.txt
 ```
 
-The first run walks through the demonstration, then saves the nursery to `nursery_system.pkl`. A second run loads that file and prints the plants, customers, orders, and payments that were saved. Delete `nursery_system.pkl` to run the full demonstration from scratch.
+Create the database and load the sample. Use the same username and password as pgAdmin. The username is usually `postgres`.
+
+```bash
+DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python seed.py
+```
+
+Replace `YOUR_PASSWORD` with your own password. Do not leave those words in the command. This creates a database named `plant_nursery` and fills it with sample plants, customers, orders, and payments.
+
+In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, and `payments`.
+
+Running the same command again clears those tables and loads the same sample.
+
+Start the web application with the same connection:
+
+```bash
+DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python app.py
+```
+
+Open http://127.0.0.1:5000. The pages do not read the database yet. The sample data is in PostgreSQL.
 
 ## Design Decisions
 
@@ -18,11 +40,11 @@ The first run walks through the demonstration, then saves the nursery to `nurser
 
 Each entity and each collection has its own file. `Order`, `OrderItem`, `PlantCatalog`, `CustomerDirectory`, `OrderHistory`, and `PaymentHistory` are each in their own file because they do different jobs. A base class stays in the same file as the classes that inherit from it, because those types only make sense together: `plant.py` holds the plant hierarchy, `customer.py` holds the customer hierarchy, and `payment.py` holds the payment hierarchy. The four custom exceptions share `exceptions.py` so `Plant`, `Order`, and `NurserySystem` can import the same types.
 
-`NurserySystem` is the only object the driver talks to. It checks that a customer and the plants are already registered, asks the customer whether a new order is allowed, and then adds the order to `OrderHistory`. That keeps registration and the business rules in one place, so the driver cannot create an order for someone who was never added, or forget to record it.
+`NurserySystem` is the only object the rest of the application talks to. It checks that a customer and the plants are already registered, asks the customer whether a new order is allowed, and then adds the order to `OrderHistory`. That keeps registration and the business rules in one place, so an order cannot be created for someone who was never added, or left unrecorded.
 
 ### Display Methods on Collection Classes
 
-Each collection has a getter that returns a copy of its list, and a `display_all` method that prints it. The copy means a caller cannot append to or clear the real list. The display method is separate so the empty-state message and the loop stay inside the collection, and the driver does not have to repeat that loop for plants, customers, orders, and payments.
+Each collection has a getter that returns a copy of its list, and a `display_all` method that prints it. The copy means a caller cannot append to or clear the real list. The display method is separate so the empty-state message and the loop stay inside the collection, and the caller does not have to repeat that loop for plants, customers, orders, and payments.
 
 `CustomerDirectory` also has `display_staff_customers`, `display_student_customers`, and `display_community_customers`. Brent asked to see the types separately rather than one mixed list. Those methods call `get_customers_by_type`, which matches `customer_type()`, so the directory does not need to import `StaffCustomer` or `CommunityCustomer`.
 
@@ -50,13 +72,13 @@ The 10% discount is per line, in `OrderItem.__calculate_cost()`, using `BULK_DIS
 
 `PaymentHistory` holds the list, the same way `OrderHistory` holds orders. `NurserySystem.record_payment()` checks that the customer is registered, the order is in this nursery, and the payment's customer is the customer on the order. `Order.record_payment()` is what changes the amount paid and the balance, and it rejects a payment larger than what is still owed. That matches `collect_order()` and `cancel_order()`, which are the methods that change status. `amount` is what comes off the order. `amount_charged()` adds `surcharge_rate()`, so a credit card payment of the remaining balance reduces the order by that balance and charges the customer 1.5% more.
 
-### Saving with Pickle
+### Saving in PostgreSQL
 
-I used a pickle file rather than text or JSON because the nursery is a graph of objects, not a flat list. One `NurserySystem` pickle keeps each order pointing at the same customer and plant objects that are in the catalog and directory. Loading does not have to rebuild subclasses, UUIDs, or those links line by line. `load_from_file()` replaces the four collections on the new system with the ones from the file.
+Plants, customers, orders, order items, and payments are stored in PostgreSQL. SQLAlchemy maps the classes onto those tables. `seed.py` creates the `plant_nursery` database if it is missing, creates the tables, and loads the sample. The connection is the `DATABASE_URL` environment variable. If that variable is not set, the app uses `postgresql+psycopg://127.0.0.1:5433/plant_nursery`, which has no password. A normal install is port 5432 and needs the password from the PostgreSQL installer.
 
 ### Custom Exceptions in Their Own File
 
-Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`, `OrderCannotBeCollectedError`, or `OrderCannotBeCancelledError` instead of a generic `ValueError`, so the driver can catch the specific problem. They live in `exceptions.py` so `Plant`, `Order`, and `NurserySystem` import the same types. Each one stores the message in `__message` and passes it to `Exception`. They do not print. Ordinary bad input, such as a price of 0 or a missing card number, is still a `ValueError` because that is invalid data, not an illegal step in an order that already exists.
+Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`, `OrderCannotBeCollectedError`, or `OrderCannotBeCancelledError` instead of a generic `ValueError`, so the caller can catch the specific problem. They live in `exceptions.py` so `Plant`, `Order`, and `NurserySystem` import the same types. Each one stores the message in `__message` and passes it to `Exception`. They do not print. Ordinary bad input, such as a price of 0 or a missing card number, is still a `ValueError` because that is invalid data, not an illegal step in an order that already exists.
 
 ## Assumptions
 
@@ -134,4 +156,4 @@ Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`,
 - `__str__` is implemented on `Plant`, `Customer`, `Order`, `OrderItem`, `Payment`, the payment subclasses, and `NurserySystem`.
 - Every class and method has a docstring. Parameters and return values include their types. Method parameters and return values have type hints, and so do the object and list attributes.
 - Comments explain the choices that are not obvious from the code, such as why stock can reach 0 only through an order, and why a list getter returns a copy.
-- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four custom exceptions, and `driver.py` catches them.
+- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four custom exceptions, and the caller catches them.

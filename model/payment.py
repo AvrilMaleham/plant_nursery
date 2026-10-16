@@ -1,7 +1,11 @@
 import uuid
-from abc import ABC, abstractmethod
+from datetime import date, datetime
 from typing import Optional
-from datetime import datetime, date
+
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base
 from .customer import Customer
 from .order import Order
 
@@ -10,11 +14,91 @@ CREDIT_CARD_SURCHARGE_RATE = 0.015
 DEBIT_CARD_SURCHARGE_RATE = 0.0
 
 
-class Payment(ABC):
+class Payment(Base):
     """
     An abstract class representing a payment made by a customer toward a
     specific order
     """
+
+    __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payments_amount"),
+        CheckConstraint(
+            "payment_type <> 'credit card' OR expiry_date IS NOT NULL",
+            name="ck_payments_expiry",
+        ),
+        CheckConstraint(
+            "payment_type = 'credit card' OR expiry_date IS NULL",
+            name="ck_payments_expiry_only",
+        ),
+        CheckConstraint(
+            "payment_type <> 'debit card' OR bank_name IS NOT NULL",
+            name="ck_payments_bank",
+        ),
+        CheckConstraint(
+            "payment_type = 'debit card' OR bank_name IS NULL",
+            name="ck_payments_bank_only",
+        ),
+    )
+
+    # Single-table inheritance. Expiry date and bank name sit on this table
+    # and stay null for the other card type. kind is the payment_type column.
+    _payment_id: Mapped[uuid.UUID] = mapped_column(
+        "payment_id", Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    kind: Mapped[str] = mapped_column(
+        "payment_type", String(20), nullable=False
+    )
+    _customer_id: Mapped[uuid.UUID] = mapped_column(
+        "customer_id",
+        Uuid(as_uuid=True),
+        ForeignKey("customers.cust_id"),
+        nullable=False,
+    )
+    _order_id: Mapped[uuid.UUID] = mapped_column(
+        "order_id",
+        Uuid(as_uuid=True),
+        ForeignKey("orders.order_id"),
+        nullable=False,
+    )
+    _amount: Mapped[float] = mapped_column(
+        "amount", Numeric(10, 2), nullable=False
+    )
+    _card_number: Mapped[str] = mapped_column(
+        "card_number", String(30), nullable=False
+    )
+    _payment_date: Mapped[str] = mapped_column(
+        "payment_date", String(10), nullable=False
+    )
+    _expiry_date: Mapped[Optional[str]] = mapped_column(
+        "expiry_date", String(20), nullable=True
+    )
+    _bank_name: Mapped[Optional[str]] = mapped_column(
+        "bank_name", String(100), nullable=True
+    )
+    _customer: Mapped[Customer] = relationship()
+    _order: Mapped[Order] = relationship()
+
+    __mapper_args__ = {
+        "polymorphic_on": "kind",
+        "polymorphic_abstract": True,
+    }
+    _ABSTRACT_METHODS = "payment_type, surcharge_rate"
+
+    def __new__(cls, *args: object, **kwargs: object) -> "Payment":
+        """
+        Stop Payment from being created directly.
+
+        :raises TypeError: If this class is abstract
+        """
+        # Raised here so the error is a TypeError. SQLAlchemy would otherwise
+        # raise its own error while setting the type column.
+        if cls.__mapper_args__.get("polymorphic_abstract"):
+            raise TypeError(
+                f"Can't instantiate abstract class {cls.__name__} "
+                f"with abstract methods {cls._ABSTRACT_METHODS}"
+            )
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -45,14 +129,14 @@ class Payment(ABC):
             raise ValueError("Card number is required")
 
         # UUID keeps payment IDs unique without a running counter.
-        self.__payment_id = uuid.uuid4()
-        self.__customer: Customer = customer
-        self.__order: Order = order
-        self.__amount = round(amount, 2)
-        self.__card_number = card_number
+        self._payment_id = uuid.uuid4()
+        self._customer = customer
+        self._order = order
+        self._amount = round(amount, 2)
+        self._card_number = card_number
         if payment_date is None:
             payment_date = date.today().strftime("%d-%m-%Y")
-        self.__payment_date = self.__validate_payment_date(payment_date)
+        self._payment_date = self.__validate_payment_date(payment_date)
 
     # ---------- Getters and Setters ----------
     # A recorded payment is a snapshot. ID, customer, order, amount, card
@@ -65,7 +149,7 @@ class Payment(ABC):
 
         :return (uuid.UUID): The unique payment ID
         """
-        return self.__payment_id
+        return self._payment_id
 
     @property
     def customer(self) -> Customer:
@@ -74,7 +158,7 @@ class Payment(ABC):
 
         :return (Customer): The customer who made the payment
         """
-        return self.__customer
+        return self._customer
 
     @property
     def order(self) -> Order:
@@ -83,7 +167,7 @@ class Payment(ABC):
 
         :return (Order): The order this payment is toward
         """
-        return self.__order
+        return self._order
 
     @property
     def amount(self) -> float:
@@ -93,7 +177,7 @@ class Payment(ABC):
         :return (float): The amount applied to the order, not including any
             surcharge
         """
-        return self.__amount
+        return float(self._amount)
 
     @property
     def payment_date(self) -> str:
@@ -102,7 +186,7 @@ class Payment(ABC):
 
         :return (str): The date of the payment
         """
-        return self.__payment_date
+        return self._payment_date
 
     @property
     def card_number(self) -> str:
@@ -111,7 +195,7 @@ class Payment(ABC):
 
         :return (str): The card number
         """
-        return self.__card_number
+        return self._card_number
 
     # ---------- Methods ----------
 
@@ -138,28 +222,25 @@ class Payment(ABC):
 
         :return (float): The charged amount, rounded to 2 decimal places
         """
-        # surcharge_rate() is abstract, so whichever subclass this object
-        # really is supplies the rate, the same way apply_discount() uses
-        # discount_rate().
-        return round(self.__amount * (1 + self.surcharge_rate()), 2)
+        # surcharge_rate() is supplied by the concrete subclass, the same way
+        # apply_discount() uses discount_rate().
+        return round(self.amount * (1 + self.surcharge_rate()), 2)
 
-    @abstractmethod
     def payment_type(self) -> str:
         """
         Return the type of payment
 
         :return (str): The type of payment
         """
-        pass
+        return self.kind
 
-    @abstractmethod
     def surcharge_rate(self) -> float:
         """
         Return this payment's surcharge rate as a decimal
 
         :return (float): This payment's surcharge rate as a decimal
         """
-        pass
+        raise NotImplementedError
 
     def __str__(self) -> str:
         """
@@ -171,10 +252,10 @@ class Payment(ABC):
             "Payment ID: {}, Payment Type: {}, Amount: {}, Amount Charged: {},"
             " Customer: {}, Order ID: {}, Payment Date: {}"
             .format(
-                self.__payment_id, self.payment_type(),
-                self.__amount, self.amount_charged(),
-                self.__customer.cust_name, self.__order.order_id,
-                self.__payment_date,
+                self.payment_id, self.payment_type(),
+                self.amount, self.amount_charged(),
+                self.customer.cust_name, self.order.order_id,
+                self.payment_date,
             )
         )
 
@@ -184,6 +265,10 @@ class CreditCardPayment(Payment):
     Represents a subclass of payment called CreditCardPayment, with a 1.5%
     surcharge
     """
+
+    TYPE_NAME = "credit card"
+
+    __mapper_args__ = {"polymorphic_identity": TYPE_NAME}
 
     def __init__(
         self,
@@ -212,7 +297,7 @@ class CreditCardPayment(Payment):
             raise ValueError("Expiry date is required")
 
         super().__init__(customer, order, amount, card_number, payment_date)
-        self.__expiry_date = expiry_date
+        self._expiry_date = expiry_date
 
     @property
     def expiry_date(self) -> str:
@@ -221,7 +306,7 @@ class CreditCardPayment(Payment):
 
         :return (str): The card expiry date
         """
-        return self.__expiry_date
+        return self._expiry_date or ""
 
     def payment_type(self) -> str:
         """
@@ -229,7 +314,7 @@ class CreditCardPayment(Payment):
 
         :return (str): The type of payment
         """
-        return "credit card"
+        return self.TYPE_NAME
 
     def surcharge_rate(self) -> float:
         """
@@ -246,7 +331,7 @@ class CreditCardPayment(Payment):
         :return (str): A readable string of the credit card payment details
         """
         return "{}, Card Number: {}, Expiry Date: {}".format(
-            super().__str__(), self.card_number, self.__expiry_date
+            super().__str__(), self.card_number, self.expiry_date
         )
 
 
@@ -254,6 +339,10 @@ class DebitCardPayment(Payment):
     """
     Represents a subclass of payment called DebitCardPayment, with no surcharge
     """
+
+    TYPE_NAME = "debit card"
+
+    __mapper_args__ = {"polymorphic_identity": TYPE_NAME}
 
     def __init__(
         self,
@@ -282,7 +371,7 @@ class DebitCardPayment(Payment):
             raise ValueError("Bank name is required")
 
         super().__init__(customer, order, amount, card_number, payment_date)
-        self.__bank_name = bank_name
+        self._bank_name = bank_name
 
     @property
     def bank_name(self) -> str:
@@ -291,7 +380,7 @@ class DebitCardPayment(Payment):
 
         :return (str): The name of the bank the card is with
         """
-        return self.__bank_name
+        return self._bank_name or ""
 
     def payment_type(self) -> str:
         """
@@ -299,7 +388,7 @@ class DebitCardPayment(Payment):
 
         :return (str): The type of payment
         """
-        return "debit card"
+        return self.TYPE_NAME
 
     def surcharge_rate(self) -> float:
         """
@@ -316,5 +405,5 @@ class DebitCardPayment(Payment):
         :return (str): A readable string of the debit card payment details
         """
         return "{}, Card Number: {}, Bank: {}".format(
-            super().__str__(), self.card_number, self.__bank_name
+            super().__str__(), self.card_number, self.bank_name
         )

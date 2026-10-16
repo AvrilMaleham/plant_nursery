@@ -1,15 +1,21 @@
-from .payment import Payment
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from .customer import Customer
 from .order import Order
+from .payment import Payment
 
 
 class PaymentHistory:
     """Record of all payments made at the nursery"""
 
-    def __init__(self) -> None:
-        """Initialise a new PaymentHistory object"""
+    def __init__(self, session: Session) -> None:
+        """
+        Initialise a new PaymentHistory object
 
-        self.__payment_list: list[Payment] = []
+        :param session (Session): The database session that stores the payments
+        """
+        self.__session = session
 
     # ---------- Getters and Setters ----------
 
@@ -20,10 +26,11 @@ class PaymentHistory:
 
         :return (list[Payment]): The list of payments
         """
-        # A copy is returned so callers cannot change the internal list
-        # directly. New payments still have to go through add_payment(), which
-        # checks for duplicate IDs.
-        return self.__payment_list.copy()
+        # A new list is returned so callers cannot change the history by
+        # editing it. New payments still have to go through add_payment(),
+        # which checks for duplicate IDs.
+        payments = self.__session.scalars(select(Payment)).all()
+        return list(payments)
 
     # ---------- Methods ----------
 
@@ -35,14 +42,13 @@ class PaymentHistory:
         :raises ValueError: If a payment with the same ID is already in the
             list
         """
-        for existing_payment in self.__payment_list:
-            if existing_payment.payment_id == payment.payment_id:
-                raise ValueError(
-                    f"Payment with ID {payment.payment_id} "
-                    "is already in the list"
-                )
+        existing_payment = self.__session.get(Payment, payment.payment_id)
+        if existing_payment is not None:
+            raise ValueError(
+                f"Payment with ID {payment.payment_id} is already in the list"
+            )
 
-        self.__payment_list.append(payment)
+        self.__session.add(payment)
 
     def get_customer_payments(self, customer: Customer) -> list[Payment]:
         """
@@ -53,7 +59,7 @@ class PaymentHistory:
             customer
         """
         matching_payments = []
-        for payment in self.__payment_list:
+        for payment in self.payment_list:
             if payment.customer.cust_id == customer.cust_id:
                 matching_payments.append(payment)
         return matching_payments
@@ -66,18 +72,19 @@ class PaymentHistory:
         :return (list[Payment]): A list of Payment objects for that order
         """
         matching_payments = []
-        for payment in self.__payment_list:
+        for payment in self.payment_list:
             if payment.order.order_id == order.order_id:
                 matching_payments.append(payment)
         return matching_payments
 
     def display_all_payments(self) -> None:
         """Print a readable list of every payment in the list"""
-        if not self.__payment_list:
+        payments = self.payment_list
+        if not payments:
             print("No payments yet")
             return
 
-        for payment in self.__payment_list:
+        for payment in payments:
             print(payment)
 
     def display_customer_payments(self, customer: Customer) -> None:

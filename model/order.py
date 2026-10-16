@@ -1,10 +1,15 @@
 import uuid
+from datetime import date, datetime
 from typing import Literal, Optional
-from datetime import datetime, date
+
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base
 from .customer import Customer
-from .plant import Plant
+from .exceptions import OrderCannotBeCancelledError, OrderCannotBeCollectedError
 from .order_item import OrderItem
-from .exceptions import OrderCannotBeCollectedError, OrderCannotBeCancelledError
+from .plant import Plant
 
 # The three statuses come from Brent's notes and are treated as a fixed set.
 # A Literal type is used so the allowed values are explicit even though status
@@ -12,11 +17,48 @@ from .exceptions import OrderCannotBeCollectedError, OrderCannotBeCancelledError
 OrderStatus = Literal["pending", "collected", "cancelled"]
 
 
-class Order:
+class Order(Base):
     """
     Represents an order made by a customer, bringing together one or more order
     items
     """
+
+    __tablename__ = "orders"
+    __table_args__ = (
+        CheckConstraint("order_total > 0", name="ck_orders_total"),
+        CheckConstraint("amount_paid >= 0", name="ck_orders_amount_paid"),
+        CheckConstraint(
+            "order_status IN ('pending', 'collected', 'cancelled')",
+            name="ck_orders_status",
+        ),
+    )
+
+    _order_id: Mapped[uuid.UUID] = mapped_column(
+        "order_id", Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    _customer_id: Mapped[uuid.UUID] = mapped_column(
+        "customer_id",
+        Uuid(as_uuid=True),
+        ForeignKey("customers.cust_id"),
+        nullable=False,
+    )
+    _order_date: Mapped[str] = mapped_column(
+        "order_date", String(10), nullable=False
+    )
+    _order_status: Mapped[str] = mapped_column(
+        "order_status", String(20), nullable=False, default="pending"
+    )
+    _order_total: Mapped[float] = mapped_column(
+        "order_total", Numeric(10, 2), nullable=False
+    )
+    _amount_paid: Mapped[float] = mapped_column(
+        "amount_paid", Numeric(10, 2), nullable=False, default=0
+    )
+    _customer: Mapped[Customer] = relationship()
+    _items: Mapped[list[OrderItem]] = relationship(
+        back_populates="_order",
+        cascade="all, delete-orphan",
+    )
 
     def __init__(
         self,
@@ -54,29 +96,31 @@ class Order:
             seen_plant_ids.append(plant.plant_id)
 
         # UUID keeps order IDs unique without a running counter.
-        self.__order_id = uuid.uuid4()
+        self._order_id = uuid.uuid4()
         # Date defaults to today if none is supplied, then is validated as a
         # real calendar date.
         if order_date is None:
             order_date = date.today().strftime("%d-%m-%Y")
-        self.__order_date = self.__validate_order_date(order_date)
+        self._order_date = self.__validate_order_date(order_date)
         # New orders always start as pending. Status is not settable directly
         # after this.
-        self.__order_status: OrderStatus = "pending"
-        self.__customer: Customer = customer
-        self.__items: list[OrderItem] = []
+        self._order_status = "pending"
+        self._customer = customer
+        self._amount_paid = 0.0
         for plant, quantity in items:
-            self.__items.append(OrderItem(plant, quantity))
+            # Append to the mapped collection so each line is saved with the
+            # order. Replacing the collection with a plain list would drop that
+            # link.
+            self._items.append(OrderItem(plant, quantity))
 
         items_subtotal = 0.0
-        for item in self.__items:
+        for item in self._items:
             items_subtotal += item.item_cost
         # Item bulk discounts are already in each line. The customer discount
         # comes off the order as a whole, using whichever rate the customer
         # subclass supplies.
-        self.__order_total = customer.apply_discount(items_subtotal)
-        self.__amount_paid = 0.0
-        customer.add_to_balance(self.__order_total)
+        self._order_total = customer.apply_discount(items_subtotal)
+        customer.add_to_balance(self.order_total)
 
     # ---------- Getters and Setters ----------
     # Status has no setter because not every transition is legal (e.g.
@@ -92,7 +136,7 @@ class Order:
 
         :return (uuid.UUID): The unique order ID
         """
-        return self.__order_id
+        return self._order_id
 
     @property
     def order_date(self) -> str:
@@ -101,7 +145,7 @@ class Order:
 
         :return (str): Date of the order
         """
-        return self.__order_date
+        return self._order_date
 
     @order_date.setter
     def order_date(self, value: str) -> None:
@@ -112,7 +156,7 @@ class Order:
         :raises ValueError: If the date is not a valid calendar date in
             DD-MM-YYYY format
         """
-        self.__order_date = self.__validate_order_date(value)
+        self._order_date = self.__validate_order_date(value)
 
     @property
     def order_status(self) -> OrderStatus:
@@ -121,7 +165,7 @@ class Order:
 
         :return (OrderStatus): The status of the order
         """
-        return self.__order_status
+        return self._order_status  # type: ignore[return-value]
 
     @property
     def customer(self) -> Customer:
@@ -130,7 +174,7 @@ class Order:
 
         :return (Customer): The customer on the order
         """
-        return self.__customer
+        return self._customer
 
     @property
     def items(self) -> list[OrderItem]:
@@ -141,7 +185,7 @@ class Order:
         """
         # A copy is returned so callers cannot add or remove items on a placed
         # order.
-        return self.__items.copy()
+        return list(self._items)
 
     @property
     def order_total(self) -> float:
@@ -151,7 +195,7 @@ class Order:
         :return (float): The total price of the order after item and customer
             discounts
         """
-        return self.__order_total
+        return float(self._order_total)
 
     @property
     def amount_paid(self) -> float:
@@ -160,7 +204,7 @@ class Order:
 
         :return (float): How much has been paid toward this order
         """
-        return self.__amount_paid
+        return float(self._amount_paid)
 
     @property
     def remaining_balance(self) -> float:
@@ -171,9 +215,9 @@ class Order:
         """
         # A cancelled order has already had its total taken back off the
         # customer.
-        if self.__order_status == "cancelled":
+        if self._order_status == "cancelled":
             return 0.0
-        return round(self.__order_total - self.__amount_paid, 2)
+        return round(self.order_total - self.amount_paid, 2)
 
     # ---------- Methods ----------
 
@@ -215,8 +259,8 @@ class Order:
         if amount > self.remaining_balance:
             raise ValueError(
                 "Payment cannot be more than what is still owed on this order")
-        self.__amount_paid = round(self.__amount_paid + amount, 2)
-        self.__customer.reduce_balance(amount)
+        self._amount_paid = round(self.amount_paid + amount, 2)
+        self.customer.reduce_balance(amount)
 
     def collect_order(self) -> None:
         """
@@ -226,19 +270,19 @@ class Order:
             collected or cancelled, or the customer is not allowed to collect
             it yet
         """
-        if self.__order_status == "collected":
+        if self._order_status == "collected":
             raise OrderCannotBeCollectedError(
                 "Order has already been collected")
-        if self.__order_status == "cancelled":
+        if self._order_status == "cancelled":
             raise OrderCannotBeCollectedError(
                 "Unable to collect cancelled order")
         # Pending is the only status that can move to collected. Whether this
         # customer may collect while still owing is answered by the customer
         # subclass.
-        if not self.__customer.can_collect_order(self.remaining_balance):
+        if not self.customer.can_collect_order(self.remaining_balance):
             raise OrderCannotBeCollectedError(
                 "Order must be paid in full before it can be collected")
-        self.__order_status = "collected"
+        self._order_status = "collected"
 
     def cancel_order(self) -> None:
         """
@@ -248,21 +292,21 @@ class Order:
         :raises OrderCannotBeCancelledError: If the order has already been
             collected or cancelled, or anything has been paid toward it
         """
-        if self.__order_status == "collected":
+        if self._order_status == "collected":
             raise OrderCannotBeCancelledError(
                 "Cannot cancel order that has already been collected")
-        if self.__order_status == "cancelled":
+        if self._order_status == "cancelled":
             raise OrderCannotBeCancelledError(
                 "Order has already been cancelled")
-        if self.__amount_paid > 0:
+        if self.amount_paid > 0:
             raise OrderCannotBeCancelledError(
                 "Cannot cancel an order that has already been paid toward")
         # Stock is restored on every item, and the order total comes off what
         # they owe, matching how placing the order added it.
-        for item in self.__items:
+        for item in self._items:
             item.restore_stock()
-        self.__customer.reduce_balance(self.__order_total)
-        self.__order_status = "cancelled"
+        self.customer.reduce_balance(self.order_total)
+        self._order_status = "cancelled"
 
     def __str__(self) -> str:
         """
@@ -270,15 +314,15 @@ class Order:
 
         :return (str): A readable string of the order details
         """
-        item_text = "; ".join(str(item) for item in self.__items)
+        item_text = "; ".join(str(item) for item in self._items)
         return (
             "Order ID: {}, Order Date: {}, Order Status: {}, Customer: {},"
             " Items: [{}], Order Total: {}, Amount Paid: {}, "
             "Remaining Balance: {}"
             .format(
-                self.__order_id, self.__order_date,
-                self.__order_status, self.__customer.cust_name,
-                item_text, self.__order_total,
-                self.__amount_paid, self.remaining_balance,
+                self.order_id, self.order_date,
+                self.order_status, self.customer.cust_name,
+                item_text, self.order_total,
+                self.amount_paid, self.remaining_balance,
             )
         )

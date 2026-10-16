@@ -1,15 +1,45 @@
-from .plant import Plant
+import uuid
+
+from sqlalchemy import ForeignKey, Integer, Numeric, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base
 from .exceptions import InsufficientStockError
+from .plant import Plant
 
 # Ten or more of the same plant on one line gets this discount.
 BULK_DISCOUNT_QUANTITY = 10
 BULK_DISCOUNT_RATE = 0.10
 
 
-class OrderItem:
+class OrderItem(Base):
     """
     Represents one plant type within an order, with its quantity and line cost
     """
+
+    __tablename__ = "order_items"
+
+    _item_id: Mapped[uuid.UUID] = mapped_column(
+        "item_id", Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    _order_id: Mapped[uuid.UUID] = mapped_column(
+        "order_id",
+        Uuid(as_uuid=True),
+        ForeignKey("orders.order_id"),
+        nullable=False,
+    )
+    _plant_id: Mapped[uuid.UUID] = mapped_column(
+        "plant_id",
+        Uuid(as_uuid=True),
+        ForeignKey("plants.plant_id"),
+        nullable=False,
+    )
+    _quantity: Mapped[int] = mapped_column("quantity", Integer, nullable=False)
+    _item_cost: Mapped[float] = mapped_column(
+        "item_cost", Numeric(10, 2), nullable=False
+    )
+    _plant: Mapped[Plant] = relationship()
+    _order: Mapped["Order"] = relationship("Order", back_populates="_items")
 
     def __init__(self, plant: Plant, quantity: int) -> None:
         """
@@ -26,9 +56,10 @@ class OrderItem:
         # whether it is created on its own or as part of an order.
         OrderItem.validate(plant, quantity)
 
-        self.__plant: Plant = plant
-        self.__quantity = quantity
-        self.__item_cost = self.__calculate_cost()
+        self._item_id = uuid.uuid4()
+        self._plant = plant
+        self._quantity = quantity
+        self._item_cost = self.__calculate_cost()
         plant.reduce_stock(quantity)
 
     # ---------- Getters and Setters ----------
@@ -42,7 +73,7 @@ class OrderItem:
 
         :return (Plant): The plant on this item
         """
-        return self.__plant
+        return self._plant
 
     @property
     def quantity(self) -> int:
@@ -51,7 +82,7 @@ class OrderItem:
 
         :return (int): The quantity of this item, in the plant's sale unit
         """
-        return self.__quantity
+        return int(self._quantity)
 
     @property
     def item_cost(self) -> float:
@@ -60,7 +91,7 @@ class OrderItem:
 
         :return (float): The cost of this item after any bulk discount
         """
-        return self.__item_cost
+        return float(self._item_cost)
 
     # ---------- Methods ----------
 
@@ -89,16 +120,16 @@ class OrderItem:
         :return (float): The item cost after any applicable discount, rounded
             to 2 decimal places
         """
-        subtotal = self.__plant.plant_price * self.__quantity
+        subtotal = self.plant.plant_price * self.quantity
         # 10 or more of the same plant (same catalog entry, so the same pot
         # size or the same seedling type) gets 10% off this line only.
-        if self.__quantity >= BULK_DISCOUNT_QUANTITY:
+        if self.quantity >= BULK_DISCOUNT_QUANTITY:
             return round(subtotal * (1 - BULK_DISCOUNT_RATE), 2)
         return round(subtotal, 2)
 
     def restore_stock(self) -> None:
         """Return this item's quantity to stock when the order is cancelled"""
-        self.__plant.restore_stock(self.__quantity)
+        self.plant.restore_stock(self.quantity)
 
     def __str__(self) -> str:
         """
@@ -109,8 +140,8 @@ class OrderItem:
         return (
             "Plant: {} ({}), Quantity: {} {}, Item Cost: {}"
             .format(
-                self.__plant.plant_name, self.__plant.plant_type(),
-                self.__quantity, self.__plant.sale_unit(),
-                self.__item_cost,
+                self.plant.plant_name, self.plant.plant_type(),
+                self.quantity, self.plant.sale_unit(),
+                self.item_cost,
             )
         )

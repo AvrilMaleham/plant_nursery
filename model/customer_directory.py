@@ -1,13 +1,20 @@
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from .customer import Customer
 
 
 class CustomerDirectory:
     """A directory of the customers of the nursery"""
 
-    def __init__(self) -> None:
-        """Initialise a new CustomerDirectory object"""
+    def __init__(self, session: Session) -> None:
+        """
+        Initialise a new CustomerDirectory object
 
-        self.__customer_list: list[Customer] = []
+        :param session (Session): The database session that stores the
+            customers
+        """
+        self.__session = session
 
     # ---------- Getters and Setters ----------
 
@@ -18,10 +25,11 @@ class CustomerDirectory:
 
         :return (list[Customer]): The list of customers
         """
-        # A copy is returned so callers cannot change the internal list
-        # directly. New customers still have to go through add_customer(),
+        # A new list is returned so callers cannot change the directory by
+        # editing it. New customers still have to go through add_customer(),
         # which checks for duplicate IDs.
-        return self.__customer_list.copy()
+        customers = self.__session.scalars(select(Customer)).all()
+        return list(customers)
 
     # ---------- Methods ----------
 
@@ -37,16 +45,15 @@ class CustomerDirectory:
         if not isinstance(customer, Customer):
             raise TypeError("Only Customer objects may be added to the list")
 
-        for existing_customer in self.__customer_list:
-            # Duplicate check is by customer ID because two people can share a
-            # name.
-            if existing_customer.cust_id == customer.cust_id:
-                raise ValueError(
-                    f"Customer with ID {customer.cust_id} "
-                    "is already in the list"
-                )
+        existing_customer = self.__session.get(Customer, customer.cust_id)
+        # Duplicate check is by customer ID because two people can share a
+        # name.
+        if existing_customer is not None:
+            raise ValueError(
+                f"Customer with ID {customer.cust_id} is already in the list"
+            )
 
-        self.__customer_list.append(customer)
+        self.__session.add(customer)
 
     def get_customers_by_type(self, customer_type: str) -> list[Customer]:
         """
@@ -57,24 +64,24 @@ class CustomerDirectory:
         :return (list[Customer]): A list of matching Customer objects
         """
         matching_customers = []
-        # customer_type() is abstract, so each subclass supplies its own label
-        # without the directory needing to know StaffCustomer from
-        # CommunityCustomer.
-        for customer in self.__customer_list:
+        # customer_type() is supplied by each subclass, so the directory does
+        # not need to know StaffCustomer from CommunityCustomer.
+        for customer in self.customer_list:
             if customer.customer_type() == customer_type:
                 matching_customers.append(customer)
         return matching_customers
 
     # display_all_customers exists alongside the customer_list getter so
-    # printing stays inside the directory. The driver can call one method
+    # printing stays inside the directory. A caller can use one method
     # instead of looping itself.
     def display_all_customers(self) -> None:
         """Print a readable list of every customer in the list"""
-        if not self.__customer_list:
+        customers = self.customer_list
+        if not customers:
             print("No customers in the catalog")
             return
 
-        for customer in self.__customer_list:
+        for customer in customers:
             print(customer)
 
     def display_staff_customers(self) -> None:

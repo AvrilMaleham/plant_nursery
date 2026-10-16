@@ -1,6 +1,8 @@
-import pickle
 import uuid
 from typing import Optional
+
+from sqlalchemy.orm import Session
+
 from .plant import Plant
 from .customer import Customer
 from .order import Order
@@ -16,26 +18,23 @@ class NurserySystem:
     """
     A central system class that manages the collections of plants, customers,
     orders, and payments, and is responsible for adding, searching, updating,
-    and reporting across them.
+    and reporting across them. The collections are stored in the database.
     """
 
-    # The whole nursery is written to one pickle file.
-    DATA_FILE = "nursery_system.pkl"
+    def __init__(self, session: Session) -> None:
+        """
+        Initialise a new NurserySystem for an open database session.
 
-    def __init__(self) -> None:
+        :param session (Session): The session that reads and writes the
+            nursery tables
         """
-        Initialise a new NurserySystem. If a save file exists from a previous
-        run, plants, customers, orders, and payments are loaded from it.
-        Otherwise the catalog, directory, and histories start empty.
-        """
-        # The collections live here so the driver only talks to one object.
+        # The collections live here so the rest of the application talks to one object.
         # Orders can then only be created for plants and customers that are
         # already registered.
-        self.__catalog: PlantCatalog = PlantCatalog()
-        self.__directory: CustomerDirectory = CustomerDirectory()
-        self.__history: OrderHistory = OrderHistory()
-        self.__payment_history: PaymentHistory = PaymentHistory()
-        self.__loaded_from_file = self.load_from_file()
+        self.__catalog: PlantCatalog = PlantCatalog(session)
+        self.__directory: CustomerDirectory = CustomerDirectory(session)
+        self.__history: OrderHistory = OrderHistory(session)
+        self.__payment_history: PaymentHistory = PaymentHistory(session)
 
     # ---------- Getters and Setters ----------
 
@@ -74,17 +73,6 @@ class NurserySystem:
         :return (PaymentHistory): The payment history
         """
         return self.__payment_history
-
-    @property
-    def loaded_from_file(self) -> bool:
-        """
-        True if plants, customers, orders, and payments were restored from the
-        save file
-
-        :return (bool): True if plants, customers, orders, and payments were
-            restored from the save file
-        """
-        return self.__loaded_from_file
 
     # ---------- Plant Methods ----------
 
@@ -391,40 +379,6 @@ class NurserySystem:
         :param order (Order): The order to look up
         """
         self.__payment_history.display_order_payments(order)
-
-    # ---------- Save and Load ----------
-
-    def save_to_file(self) -> None:
-        """
-        Write the whole nursery system to a pickle file, including plants,
-        customers, orders, and payments
-        """
-        with open(self.DATA_FILE, "wb") as file:
-            pickle.dump(self, file)
-        print("Nursery system saved successfully")
-
-    def load_from_file(self) -> bool:
-        """
-        Load a previously saved nursery system and replace this object's
-        plants, customers, orders, and payments with the loaded data.
-
-        :return (bool): True if a save file was found and loaded, False if
-            there is no file yet
-        """
-        try:
-            with open(self.DATA_FILE, "rb") as file:
-                loaded = pickle.load(file)
-        except FileNotFoundError:
-            # First run has nothing to restore, so the empty collections stay
-            # in place.
-            return False
-
-        self.__catalog = loaded.__catalog
-        self.__directory = loaded.__directory
-        self.__history = loaded.__history
-        self.__payment_history = loaded.__payment_history
-        print("Nursery system loaded successfully")
-        return True
 
     # ---------- String Method ----------
 

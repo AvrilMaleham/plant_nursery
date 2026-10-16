@@ -4,7 +4,7 @@ Domain model for the nursery.
 These classes hold the business rules. Controllers call them. Templates only
 display what a controller passes in.
 
-PostgreSQL will store Plant, Customer, and Payment with single-table
+PostgreSQL stores Plant, Customer, and Payment with single-table
 inheritance: one table per hierarchy, and a type column for the concrete
 class. IndividualPlant and UniversityCustomer stay abstract in Python. They
 do not get a table or a type value. The type column stores the same string
