@@ -27,11 +27,11 @@ class Order:
         """
         Initialise a new Order object
 
-        :param customer: The Customer associated with the order
-        :param items: A list of (plant, quantity) pairs, at least one, with no
-            plant repeated
-        :param order_date: Optional order date in DD-MM-YYYY format, defaults
-            to today
+        :param customer (Customer): The Customer associated with the order
+        :param items (list[tuple[Plant, int]]): A list of (plant, quantity)
+            pairs, at least one, with no plant repeated
+        :param order_date (Optional[str]): Optional order date in DD-MM-YYYY
+            format, defaults to today
         :raises ValueError: If there are no items, a plant is repeated, a
             quantity is not greater than 0, or the order date is invalid
         :raises InsufficientStockError: If there is not enough stock for an
@@ -87,12 +87,20 @@ class Order:
 
     @property
     def order_id(self) -> uuid.UUID:
-        """Get the unique order ID"""
+        """
+        Get the unique order ID
+
+        :return (uuid.UUID): The unique order ID
+        """
         return self.__order_id
 
     @property
     def order_date(self) -> str:
-        """Get date of the order"""
+        """
+        Get date of the order
+
+        :return (str): Date of the order
+        """
         return self.__order_date
 
     @order_date.setter
@@ -100,7 +108,7 @@ class Order:
         """
         Update the order date
 
-        :param value: New date in DD-MM-YYYY format
+        :param value (str): New date in DD-MM-YYYY format
         :raises ValueError: If the date is not a valid calendar date in
             DD-MM-YYYY format
         """
@@ -108,17 +116,29 @@ class Order:
 
     @property
     def order_status(self) -> OrderStatus:
-        """Get the status of the order"""
+        """
+        Get the status of the order
+
+        :return (OrderStatus): The status of the order
+        """
         return self.__order_status
 
     @property
     def customer(self) -> Customer:
-        """Get the customer on the order"""
+        """
+        Get the customer on the order
+
+        :return (Customer): The customer on the order
+        """
         return self.__customer
 
     @property
     def items(self) -> list[OrderItem]:
-        """Get the items on the order"""
+        """
+        Get the items on the order
+
+        :return (list[OrderItem]): The items on the order
+        """
         # A copy is returned so callers cannot add or remove items on a placed
         # order.
         return self.__items.copy()
@@ -127,17 +147,28 @@ class Order:
     def order_total(self) -> float:
         """
         Get the total price of the order after item and customer discounts
+
+        :return (float): The total price of the order after item and customer
+            discounts
         """
         return self.__order_total
 
     @property
     def amount_paid(self) -> float:
-        """Get how much has been paid toward this order"""
+        """
+        Get how much has been paid toward this order
+
+        :return (float): How much has been paid toward this order
+        """
         return self.__amount_paid
 
     @property
     def remaining_balance(self) -> float:
-        """Get how much is still owed on this order"""
+        """
+        Get how much is still owed on this order
+
+        :return (float): How much is still owed on this order
+        """
         # A cancelled order has already had its total taken back off the
         # customer.
         if self.__order_status == "cancelled":
@@ -151,8 +182,8 @@ class Order:
         Validate that the order date is a real calendar date in DD-MM-YYYY
         format
 
-        :param order_date: Date string to validate
-        :return: The validated date string
+        :param order_date (str): Date string to validate
+        :return (str): The validated date string
         :raises ValueError: If the date is not a valid calendar date in
             DD-MM-YYYY format
         """
@@ -174,8 +205,8 @@ class Order:
         Record an amount paid toward this order and take it off the customer
         balance
 
-        :param amount: Amount to apply to this order, must be greater than 0
-            and not more than remaining
+        :param amount (float): Amount to apply to this order, must be greater
+            than 0 and not more than remaining
         :raises ValueError: If amount is not greater than 0, or is more than
             what is still owed
         """
@@ -192,8 +223,8 @@ class Order:
         Update order status to collected
 
         :raises OrderCannotBeCollectedError: If the order has already been
-            collected or cancelled,
-            or the customer is not allowed to collect it yet
+            collected or cancelled, or the customer is not allowed to collect
+            it yet
         """
         if self.__order_status == "collected":
             raise OrderCannotBeCollectedError(
@@ -215,8 +246,7 @@ class Order:
         the customer balance
 
         :raises OrderCannotBeCancelledError: If the order has already been
-            collected or cancelled,
-            or anything has been paid toward it
+            collected or cancelled, or anything has been paid toward it
         """
         if self.__order_status == "collected":
             raise OrderCannotBeCancelledError(
@@ -235,7 +265,11 @@ class Order:
         self.__order_status = "cancelled"
 
     def __str__(self) -> str:
-        """Returns a readable string of the order details"""
+        """
+        Returns a readable string of the order details
+
+        :return (str): A readable string of the order details
+        """
         item_text = "; ".join(str(item) for item in self.__items)
         return (
             "Order ID: {}, Order Date: {}, Order Status: {}, Customer: {},"

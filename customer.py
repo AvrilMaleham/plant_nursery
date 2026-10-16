@@ -25,10 +25,10 @@ class Customer(ABC):
         """
         Initialise a new Customer object
 
-        :param cust_name: Name of the customer (does not need to be unique,
-            different customers can have the same name)
-        :param cust_email: Contact email address of the customer
-        :param cust_phone: Contact phone number of the customer
+        :param cust_name (str): Name of the customer (does not need to be
+            unique, different customers can have the same name)
+        :param cust_email (str): Contact email address of the customer
+        :param cust_phone (str): Contact phone number of the customer
         :raises ValueError: If there is not at least one of cust_email or
             cust_phone
         """
@@ -61,12 +61,20 @@ class Customer(ABC):
 
     @property
     def cust_id(self) -> uuid.UUID:
-        """Get the unique customer ID"""
+        """
+        Get the unique customer ID
+
+        :return (uuid.UUID): The unique customer ID
+        """
         return self.__cust_id
 
     @property
     def cust_name(self) -> str:
-        """Get the customer name"""
+        """
+        Get the customer name
+
+        :return (str): The customer name
+        """
         return self.__cust_name
 
     @cust_name.setter
@@ -74,13 +82,17 @@ class Customer(ABC):
         """
         Update the customer name
 
-        :param value: New customer name
+        :param value (str): New customer name
         """
         self.__cust_name = value
 
     @property
     def cust_email(self) -> Optional[str]:
-        """Get the customer email"""
+        """
+        Get the customer email
+
+        :return (Optional[str]): The customer email
+        """
         return self.__cust_email
 
     @cust_email.setter
@@ -88,7 +100,8 @@ class Customer(ABC):
         """
         Update the customer email. At least one contact method must remain.
 
-        :param value: New email address, or empty/None to clear it
+        :param value (Optional[str]): New email address, or empty/None to clear
+            it
         :raises ValueError: If clearing the email would leave the customer with
             no contact details
         """
@@ -102,7 +115,11 @@ class Customer(ABC):
 
     @property
     def cust_phone(self) -> Optional[str]:
-        """Get the customer phone number"""
+        """
+        Get the customer phone number
+
+        :return (Optional[str]): The customer phone number
+        """
         return self.__cust_phone
 
     @cust_phone.setter
@@ -111,7 +128,8 @@ class Customer(ABC):
         Update the customer phone number. At least one contact method must
         remain.
 
-        :param value: New phone number, or empty/None to clear it
+        :param value (Optional[str]): New phone number, or empty/None to clear
+            it
         :raises ValueError: If clearing the phone would leave the customer with
             no contact details
         """
@@ -124,7 +142,11 @@ class Customer(ABC):
 
     @property
     def balance(self) -> float:
-        """Get the amount the customer currently owes"""
+        """
+        Get the amount the customer currently owes
+
+        :return (float): The amount the customer currently owes
+        """
         return self.__balance
 
     # ---------- Methods ----------
@@ -133,7 +155,7 @@ class Customer(ABC):
         """
         Add to the amount the customer owes when an order is placed
 
-        :param amount: Amount to add, must be greater than 0
+        :param amount (float): Amount to add, must be greater than 0
         :raises ValueError: If amount is not greater than 0
         """
         if amount <= 0:
@@ -145,8 +167,8 @@ class Customer(ABC):
         Reduce the amount the customer owes when they pay or an order is
         cancelled
 
-        :param amount: Amount to take off, must be greater than 0 and not more
-            than the current balance
+        :param amount (float): Amount to take off, must be greater than 0 and
+            not more than the current balance
         :raises ValueError: If amount is not greater than 0, or is more than
             the current balance
         """
@@ -160,9 +182,9 @@ class Customer(ABC):
         """
         Apply this customer's discount to an order subtotal
 
-        :param subtotal: The order total after any item discounts
-        :return: The total after the customer discount, rounded to 2 decimal
-            places
+        :param subtotal (float): The order total after any item discounts
+        :return (float): The total after the customer discount, rounded to 2
+            decimal places
         """
         # discount_rate() is abstract, so whichever subclass this object really
         # is supplies the rate.
@@ -170,12 +192,20 @@ class Customer(ABC):
 
     @abstractmethod
     def customer_type(self) -> str:
-        """Return the type of customer"""
+        """
+        Return the type of customer
+
+        :return (str): The type of customer
+        """
         pass
 
     @abstractmethod
     def discount_rate(self) -> float:
-        """Return this customer's discount rate as a decimal"""
+        """
+        Return this customer's discount rate as a decimal
+
+        :return (float): This customer's discount rate as a decimal
+        """
         pass
 
     @abstractmethod
@@ -183,9 +213,9 @@ class Customer(ABC):
         """
         Return whether this customer is allowed to place a new order
 
-        :param pending_order_count: How many pending orders this customer
+        :param pending_order_count (int): How many pending orders this customer
             already has
-        :return: True if a new order is allowed, else False
+        :return (bool): True if a new order is allowed, else False
         """
         pass
 
@@ -194,13 +224,18 @@ class Customer(ABC):
         """
         Return whether this customer is allowed to collect an order
 
-        :param amount_owing_on_order: What is still unpaid on that order
-        :return: True if the order may be collected, else False
+        :param amount_owing_on_order (float): What is still unpaid on that
+            order
+        :return (bool): True if the order may be collected, else False
         """
         pass
 
     def __str__(self) -> str:
-        """Returns a readable string of the customer details"""
+        """
+        Returns a readable string of the customer details
+
+        :return (str): A readable string of the customer details
+        """
         return (
             "Customer ID: {}, Customer Type: {}, Customer Name: {},"
             " Customer Email: {}, Customer Phone Number: {}, Balance: {}"
@@ -222,9 +257,9 @@ class UniversityCustomer(Customer):
         University customers may place another order unless their amount owing
         is already above $100
 
-        :param pending_order_count: Not used; balances can accumulate across
-            orders
-        :return: True if balance is $100 or less, else False
+        :param pending_order_count (int): Not used; balances can accumulate
+            across orders
+        :return (bool): True if balance is $100 or less, else False
         """
         return self.balance <= CREDIT_LIMIT
 
@@ -232,8 +267,8 @@ class UniversityCustomer(Customer):
         """
         University customers may collect an order while still owing money
 
-        :param amount_owing_on_order: Not used for university customers
-        :return: True
+        :param amount_owing_on_order (float): Not used for university customers
+        :return (bool): True
         """
         return True
 
@@ -245,11 +280,19 @@ class StaffCustomer(UniversityCustomer):
     """
 
     def customer_type(self) -> str:
-        """Return the type of customer"""
+        """
+        Return the type of customer
+
+        :return (str): The type of customer
+        """
         return "staff"
 
     def discount_rate(self) -> float:
-        """Return this customer's discount rate as a decimal"""
+        """
+        Return this customer's discount rate as a decimal
+
+        :return (float): This customer's discount rate as a decimal
+        """
         return STAFF_DISCOUNT_RATE
 
 
@@ -260,11 +303,19 @@ class StudentCustomer(UniversityCustomer):
     """
 
     def customer_type(self) -> str:
-        """Return the type of customer"""
+        """
+        Return the type of customer
+
+        :return (str): The type of customer
+        """
         return "student"
 
     def discount_rate(self) -> float:
-        """Return this customer's discount rate as a decimal"""
+        """
+        Return this customer's discount rate as a decimal
+
+        :return (float): This customer's discount rate as a decimal
+        """
         return STUDENT_DISCOUNT_RATE
 
 
@@ -275,20 +326,28 @@ class CommunityCustomer(Customer):
     """
 
     def customer_type(self) -> str:
-        """Return the type of customer"""
+        """
+        Return the type of customer
+
+        :return (str): The type of customer
+        """
         return "community"
 
     def discount_rate(self) -> float:
-        """Return this customer's discount rate as a decimal"""
+        """
+        Return this customer's discount rate as a decimal
+
+        :return (float): This customer's discount rate as a decimal
+        """
         return COMMUNITY_DISCOUNT_RATE
 
     def can_place_order(self, pending_order_count: int) -> bool:
         """
         Community customers may only have one pending order at a time
 
-        :param pending_order_count: How many pending orders this customer
+        :param pending_order_count (int): How many pending orders this customer
             already has
-        :return: True if they have no pending order, else False
+        :return (bool): True if they have no pending order, else False
         """
         return pending_order_count == 0
 
@@ -297,7 +356,8 @@ class CommunityCustomer(Customer):
         Community customers must pay an order off in full before it can be
         collected
 
-        :param amount_owing_on_order: What is still unpaid on that order
-        :return: True if nothing is still owed on the order, else False
+        :param amount_owing_on_order (float): What is still unpaid on that
+            order
+        :return (bool): True if nothing is still owed on the order, else False
         """
         return amount_owing_on_order <= 0

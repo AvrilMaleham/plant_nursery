@@ -27,12 +27,13 @@ class Payment(ABC):
         """
         Initialise a new Payment object
 
-        :param customer: The customer making the payment
-        :param order: The order this payment is toward
-        :param amount: Amount applied to the order, must be greater than 0
-        :param card_number: Card number for this payment
-        :param payment_date: Optional payment date in DD-MM-YYYY format,
-            defaults to today
+        :param customer (Customer): The customer making the payment
+        :param order (Order): The order this payment is toward
+        :param amount (float): Amount applied to the order, must be greater
+            than 0
+        :param card_number (str): Card number for this payment
+        :param payment_date (Optional[str]): Optional payment date in
+            DD-MM-YYYY format, defaults to today
         :raises ValueError: If amount is not greater than 0, card number is
             missing, or the payment date is invalid
         """
@@ -59,32 +60,57 @@ class Payment(ABC):
 
     @property
     def payment_id(self) -> uuid.UUID:
-        """Get the unique payment ID"""
+        """
+        Get the unique payment ID
+
+        :return (uuid.UUID): The unique payment ID
+        """
         return self.__payment_id
 
     @property
     def customer(self) -> Customer:
-        """Get the customer who made the payment"""
+        """
+        Get the customer who made the payment
+
+        :return (Customer): The customer who made the payment
+        """
         return self.__customer
 
     @property
     def order(self) -> Order:
-        """Get the order this payment is toward"""
+        """
+        Get the order this payment is toward
+
+        :return (Order): The order this payment is toward
+        """
         return self.__order
 
     @property
     def amount(self) -> float:
-        """Get the amount applied to the order, not including any surcharge"""
+        """
+        Get the amount applied to the order, not including any surcharge
+
+        :return (float): The amount applied to the order, not including any
+            surcharge
+        """
         return self.__amount
 
     @property
     def payment_date(self) -> str:
-        """Get the date of the payment"""
+        """
+        Get the date of the payment
+
+        :return (str): The date of the payment
+        """
         return self.__payment_date
 
     @property
     def card_number(self) -> str:
-        """Get the card number"""
+        """
+        Get the card number
+
+        :return (str): The card number
+        """
         return self.__card_number
 
     # ---------- Methods ----------
@@ -94,8 +120,8 @@ class Payment(ABC):
         Validate that the payment date is a real calendar date in DD-MM-YYYY
         format
 
-        :param payment_date: Date string to validate
-        :return: The validated date string
+        :param payment_date (str): Date string to validate
+        :return (str): The validated date string
         :raises ValueError: If the date is not a valid calendar date in
             DD-MM-YYYY format
         """
@@ -110,7 +136,7 @@ class Payment(ABC):
         """
         Return what the customer is charged, including any surcharge
 
-        :return: The charged amount, rounded to 2 decimal places
+        :return (float): The charged amount, rounded to 2 decimal places
         """
         # surcharge_rate() is abstract, so whichever subclass this object
         # really is supplies the rate, the same way apply_discount() uses
@@ -119,16 +145,28 @@ class Payment(ABC):
 
     @abstractmethod
     def payment_type(self) -> str:
-        """Return the type of payment"""
+        """
+        Return the type of payment
+
+        :return (str): The type of payment
+        """
         pass
 
     @abstractmethod
     def surcharge_rate(self) -> float:
-        """Return this payment's surcharge rate as a decimal"""
+        """
+        Return this payment's surcharge rate as a decimal
+
+        :return (float): This payment's surcharge rate as a decimal
+        """
         pass
 
     def __str__(self) -> str:
-        """Returns a readable string of the payment details"""
+        """
+        Returns a readable string of the payment details
+
+        :return (str): A readable string of the payment details
+        """
         return (
             "Payment ID: {}, Payment Type: {}, Amount: {}, Amount Charged: {},"
             " Customer: {}, Order ID: {}, Payment Date: {}"
@@ -159,16 +197,16 @@ class CreditCardPayment(Payment):
         """
         Initialise a new CreditCardPayment object
 
-        :param customer: The customer making the payment
-        :param order: The order this payment is toward
-        :param amount: Amount applied to the order, must be greater than 0
-        :param card_number: Credit card number
-        :param expiry_date: Card expiry date
-        :param payment_date: Optional payment date in DD-MM-YYYY format,
-            defaults to today
+        :param customer (Customer): The customer making the payment
+        :param order (Order): The order this payment is toward
+        :param amount (float): Amount applied to the order, must be greater
+            than 0
+        :param card_number (str): Credit card number
+        :param expiry_date (str): Card expiry date
+        :param payment_date (Optional[str]): Optional payment date in
+            DD-MM-YYYY format, defaults to today
         :raises ValueError: If amount is not greater than 0, card number or
-            expiry is missing,
-            or the payment date is invalid
+            expiry is missing, or the payment date is invalid
         """
         if not expiry_date:
             raise ValueError("Expiry date is required")
@@ -178,19 +216,35 @@ class CreditCardPayment(Payment):
 
     @property
     def expiry_date(self) -> str:
-        """Get the card expiry date"""
+        """
+        Get the card expiry date
+
+        :return (str): The card expiry date
+        """
         return self.__expiry_date
 
     def payment_type(self) -> str:
-        """Return the type of payment"""
+        """
+        Return the type of payment
+
+        :return (str): The type of payment
+        """
         return "credit card"
 
     def surcharge_rate(self) -> float:
-        """Return this payment's surcharge rate as a decimal"""
+        """
+        Return this payment's surcharge rate as a decimal
+
+        :return (float): This payment's surcharge rate as a decimal
+        """
         return CREDIT_CARD_SURCHARGE_RATE
 
     def __str__(self) -> str:
-        """Returns a readable string of the credit card payment details"""
+        """
+        Returns a readable string of the credit card payment details
+
+        :return (str): A readable string of the credit card payment details
+        """
         return "{}, Card Number: {}, Expiry Date: {}".format(
             super().__str__(), self.card_number, self.__expiry_date
         )
@@ -213,16 +267,16 @@ class DebitCardPayment(Payment):
         """
         Initialise a new DebitCardPayment object
 
-        :param customer: The customer making the payment
-        :param order: The order this payment is toward
-        :param amount: Amount applied to the order, must be greater than 0
-        :param card_number: Debit card number
-        :param bank_name: Name of the bank the card is with
-        :param payment_date: Optional payment date in DD-MM-YYYY format,
-            defaults to today
+        :param customer (Customer): The customer making the payment
+        :param order (Order): The order this payment is toward
+        :param amount (float): Amount applied to the order, must be greater
+            than 0
+        :param card_number (str): Debit card number
+        :param bank_name (str): Name of the bank the card is with
+        :param payment_date (Optional[str]): Optional payment date in
+            DD-MM-YYYY format, defaults to today
         :raises ValueError: If amount is not greater than 0, card number or
-            bank name is missing,
-            or the payment date is invalid
+            bank name is missing, or the payment date is invalid
         """
         if not bank_name:
             raise ValueError("Bank name is required")
@@ -232,19 +286,35 @@ class DebitCardPayment(Payment):
 
     @property
     def bank_name(self) -> str:
-        """Get the name of the bank the card is with"""
+        """
+        Get the name of the bank the card is with
+
+        :return (str): The name of the bank the card is with
+        """
         return self.__bank_name
 
     def payment_type(self) -> str:
-        """Return the type of payment"""
+        """
+        Return the type of payment
+
+        :return (str): The type of payment
+        """
         return "debit card"
 
     def surcharge_rate(self) -> float:
-        """Return this payment's surcharge rate as a decimal"""
+        """
+        Return this payment's surcharge rate as a decimal
+
+        :return (float): This payment's surcharge rate as a decimal
+        """
         return DEBIT_CARD_SURCHARGE_RATE
 
     def __str__(self) -> str:
-        """Returns a readable string of the debit card payment details"""
+        """
+        Returns a readable string of the debit card payment details
+
+        :return (str): A readable string of the debit card payment details
+        """
         return "{}, Card Number: {}, Bank: {}".format(
             super().__str__(), self.card_number, self.__bank_name
         )

@@ -13,11 +13,12 @@ class OrderItem:
 
     def __init__(self, plant: Plant, quantity: int) -> None:
         """
-        Initialise a new OrderItem object.
-        Stock is reduced immediately for this item's quantity.
+        Initialise a new OrderItem object. Stock is reduced immediately for
+        this item's quantity.
 
-        :param plant: The plant being ordered
-        :param quantity: Quantity in that plant's sale unit, must be at least 1
+        :param plant (Plant): The plant being ordered
+        :param quantity (int): Quantity in that plant's sale unit, must be at
+            least 1
         :raises ValueError: If quantity is not greater than 0
         :raises InsufficientStockError: If there is not enough stock
         """
@@ -36,17 +37,29 @@ class OrderItem:
 
     @property
     def plant(self) -> Plant:
-        """Get the plant on this item"""
+        """
+        Get the plant on this item
+
+        :return (Plant): The plant on this item
+        """
         return self.__plant
 
     @property
     def quantity(self) -> int:
-        """Get the quantity of this item, in the plant's sale unit"""
+        """
+        Get the quantity of this item, in the plant's sale unit
+
+        :return (int): The quantity of this item, in the plant's sale unit
+        """
         return self.__quantity
 
     @property
     def item_cost(self) -> float:
-        """Get the cost of this item after any bulk discount"""
+        """
+        Get the cost of this item after any bulk discount
+
+        :return (float): The cost of this item after any bulk discount
+        """
         return self.__item_cost
 
     # ---------- Methods ----------
@@ -56,8 +69,9 @@ class OrderItem:
         """
         Check that this quantity of the plant can be ordered
 
-        :param plant: The plant being ordered
-        :param quantity: Quantity in that plant's sale unit, must be at least 1
+        :param plant (Plant): The plant being ordered
+        :param quantity (int): Quantity in that plant's sale unit, must be at
+            least 1
         :raises ValueError: If quantity is not greater than 0
         :raises InsufficientStockError: If there is not enough stock
         """
@@ -72,8 +86,8 @@ class OrderItem:
         Calculate the line cost, applying a 10% discount for quantities of 10
         or more.
 
-        :return: The item cost after any applicable discount, rounded to 2
-            decimal places
+        :return (float): The item cost after any applicable discount, rounded
+            to 2 decimal places
         """
         subtotal = self.__plant.plant_price * self.__quantity
         # 10 or more of the same plant (same catalog entry, so the same pot
@@ -87,7 +101,11 @@ class OrderItem:
         self.__plant.restore_stock(self.__quantity)
 
     def __str__(self) -> str:
-        """Returns a readable string of the order item details"""
+        """
+        Returns a readable string of the order item details
+
+        :return (str): A readable string of the order item details
+        """
         return (
             "Plant: {} ({}), Quantity: {} {}, Item Cost: {}"
             .format(

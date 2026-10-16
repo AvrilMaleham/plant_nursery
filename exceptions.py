@@ -5,13 +5,17 @@ class InsufficientStockError(Exception):
         """
         Initialise a new InsufficientStockError object
 
-        :param message: The message to show for this error
+        :param message (str): The message to show for this error
         """
         self.__message = message
         super().__init__(self.__message)
 
     def __str__(self) -> str:
-        """Returns a readable string of the error message"""
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
         return self.__message
 
 
@@ -25,13 +29,17 @@ class OrderNotAllowedError(Exception):
         """
         Initialise a new OrderNotAllowedError object
 
-        :param message: The message to show for this error
+        :param message (str): The message to show for this error
         """
         self.__message = message
         super().__init__(self.__message)
 
     def __str__(self) -> str:
-        """Returns a readable string of the error message"""
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
         return self.__message
 
 
@@ -42,13 +50,17 @@ class OrderCannotBeCollectedError(Exception):
         """
         Initialise a new OrderCannotBeCollectedError object
 
-        :param message: The message to show for this error
+        :param message (str): The message to show for this error
         """
         self.__message = message
         super().__init__(self.__message)
 
     def __str__(self) -> str:
-        """Returns a readable string of the error message"""
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
         return self.__message
 
 
@@ -59,11 +71,15 @@ class OrderCannotBeCancelledError(Exception):
         """
         Initialise a new OrderCannotBeCancelledError object
 
-        :param message: The message to show for this error
+        :param message (str): The message to show for this error
         """
         self.__message = message
         super().__init__(self.__message)
 
     def __str__(self) -> str:
-        """Returns a readable string of the error message"""
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
         return self.__message

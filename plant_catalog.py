@@ -13,7 +13,11 @@ class PlantCatalog:
 
     @property
     def plant_list(self) -> list[Plant]:
-        """Get the list of plants"""
+        """
+        Get the list of plants
+
+        :return (list[Plant]): The list of plants
+        """
         # A copy is returned so callers cannot append to or clear the internal
         # list. New plants still have to go through catalog_plant(), which
         # checks for duplicate IDs.
@@ -25,7 +29,7 @@ class PlantCatalog:
         """
         Adds a new plant to the catalog.
 
-        :param plant: Plant to add to the catalog
+        :param plant (Plant): Plant to add to the catalog
         :raises TypeError: If plant is not a Plant object
         :raises ValueError: If a plant with the same ID is already in the
             catalog
@@ -49,7 +53,8 @@ class PlantCatalog:
         """
         Return plants that currently have stock available to sell
 
-        :return: A list of Plant objects with current stock greater than 0
+        :return (list[Plant]): A list of Plant objects with current stock
+            greater than 0
         """
         available_plants = []
         # Available means currently in stock, not just present in the catalog.

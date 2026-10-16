@@ -41,22 +41,38 @@ class NurserySystem:
 
     @property
     def catalog(self) -> PlantCatalog:
-        """Get the plant catalog"""
+        """
+        Get the plant catalog
+
+        :return (PlantCatalog): The plant catalog
+        """
         return self.__catalog
 
     @property
     def directory(self) -> CustomerDirectory:
-        """Get the customer directory"""
+        """
+        Get the customer directory
+
+        :return (CustomerDirectory): The customer directory
+        """
         return self.__directory
 
     @property
     def history(self) -> OrderHistory:
-        """Get the order history"""
+        """
+        Get the order history
+
+        :return (OrderHistory): The order history
+        """
         return self.__history
 
     @property
     def payment_history(self) -> PaymentHistory:
-        """Get the payment history"""
+        """
+        Get the payment history
+
+        :return (PaymentHistory): The payment history
+        """
         return self.__payment_history
 
     @property
@@ -64,6 +80,9 @@ class NurserySystem:
         """
         True if plants, customers, orders, and payments were restored from the
         save file
+
+        :return (bool): True if plants, customers, orders, and payments were
+            restored from the save file
         """
         return self.__loaded_from_file
 
@@ -73,7 +92,7 @@ class NurserySystem:
         """
         Add a new plant to the catalog
 
-        :param plant: Plant to add
+        :param plant (Plant): Plant to add
         :raises TypeError: If plant is not a Plant object
         :raises ValueError: If a plant with the same ID already exists
         """
@@ -83,8 +102,8 @@ class NurserySystem:
         """
         Search for a plant by its ID
 
-        :param plant_id: The UUID of the plant to find
-        :return: The matching Plant object
+        :param plant_id (uuid.UUID): The UUID of the plant to find
+        :return (Plant): The matching Plant object
         :raises ValueError: If no plant with that ID is found
         """
         for plant in self.__catalog.plant_list:
@@ -102,7 +121,8 @@ class NurserySystem:
         """
         Return plants that currently have stock available to sell
 
-        :return: A list of Plant objects with current stock greater than 0
+        :return (list[Plant]): A list of Plant objects with current stock
+            greater than 0
         """
         return self.__catalog.get_available_plants()
 
@@ -116,7 +136,7 @@ class NurserySystem:
         """
         Add a new customer to the directory
 
-        :param customer: Customer to add
+        :param customer (Customer): Customer to add
         :raises TypeError: If customer is not a Customer object
         :raises ValueError: If a customer with the same ID already exists
         """
@@ -126,8 +146,8 @@ class NurserySystem:
         """
         Search for a customer by their ID
 
-        :param customer_id: The UUID of the customer to find
-        :return: The matching Customer object
+        :param customer_id (uuid.UUID): The UUID of the customer to find
+        :return (Customer): The matching Customer object
         :raises ValueError: If no customer with that ID is found
         """
         for customer in self.__directory.customer_list:
@@ -141,7 +161,7 @@ class NurserySystem:
         Confirm the customer is registered, matching by ID rather than object
         identity
 
-        :param customer: The customer to look up
+        :param customer (Customer): The customer to look up
         :raises ValueError: If the customer is not registered in the system
         """
         # find_customer matches on ID, so a different Python object with the
@@ -179,16 +199,16 @@ class NurserySystem:
     ) -> Order:
         """
         Place a new order after validating the customer and plants are
-        registered by ID.
-        The customer's place-order rules are checked before the order is
+        registered by ID. The customer's place-order rules are checked before
+        the order is created. Stock is reduced immediately when the order is
         created.
-        Stock is reduced immediately when the order is created.
 
-        :param customer: The Customer placing the order
-        :param items: A list of (plant, quantity) pairs to include on the order
-        :param order_date: Optional order date in DD-MM-YYYY format, defaults
-            to today
-        :return: The newly created Order object
+        :param customer (Customer): The Customer placing the order
+        :param items (list[tuple[Plant, int]]): A list of (plant, quantity)
+            pairs to include on the order
+        :param order_date (Optional[str]): Optional order date in DD-MM-YYYY
+            format, defaults to today
+        :return (Order): The newly created Order object
         :raises ValueError: If customer or a plant is not registered, or the
             order date is invalid
         :raises OrderNotAllowedError: If the customer is not allowed to place
@@ -235,8 +255,8 @@ class NurserySystem:
         """
         Search for an order by its ID
 
-        :param order_id: The UUID of the order to find
-        :return: The matching Order object
+        :param order_id (uuid.UUID): The UUID of the order to find
+        :return (Order): The matching Order object
         :raises ValueError: If no order with that ID is found
         """
         for order in self.__history.order_list:
@@ -248,7 +268,7 @@ class NurserySystem:
         """
         Mark an order as collected
 
-        :param order: The Order to collect
+        :param order (Order): The Order to collect
         :raises ValueError: If the order is not in the system
         :raises OrderCannotBeCollectedError: If the order cannot be collected
         """
@@ -263,7 +283,7 @@ class NurserySystem:
         Cancel a pending unpaid order, restore the stock, and take the total
         off the customer balance
 
-        :param order: The Order to cancel
+        :param order (Order): The Order to cancel
         :raises ValueError: If the order is not in the system
         :raises OrderCannotBeCancelledError: If the order cannot be cancelled
         """
@@ -276,8 +296,9 @@ class NurserySystem:
         """
         Retrieve all orders for a specific customer
 
-        :param customer: The Customer to look up
-        :return: A list of Order objects belonging to that customer
+        :param customer (Customer): The Customer to look up
+        :return (list[Order]): A list of Order objects belonging to that
+            customer
         :raises ValueError: If customer is not registered in the system
         """
         self.__require_registered_customer(customer)
@@ -292,16 +313,13 @@ class NurserySystem:
     def record_payment(self, payment: Payment) -> None:
         """
         Record a payment toward an order. The amount is applied to the order
-        and
-        taken off the customer balance. A payment is accepted whenever the
-        order
-        still has a remaining balance.
+        and taken off the customer balance. A payment is accepted whenever the
+        order still has a remaining balance.
 
-        :param payment: The Payment to record
+        :param payment (Payment): The Payment to record
         :raises ValueError: If the customer or order is not in the system, the
-            customer
-            does not own the order, or the amount is more than what is still
-            owed
+            customer does not own the order, or the amount is more than what is
+            still owed
         """
         self.__require_registered_customer(payment.customer)
 
@@ -321,8 +339,8 @@ class NurserySystem:
         """
         Search for a payment by its ID
 
-        :param payment_id: The UUID of the payment to find
-        :return: The matching Payment object
+        :param payment_id (uuid.UUID): The UUID of the payment to find
+        :return (Payment): The matching Payment object
         :raises ValueError: If no payment with that ID is found
         """
         for payment in self.__payment_history.payment_list:
@@ -334,8 +352,9 @@ class NurserySystem:
         """
         Retrieve all payments made by a specific customer
 
-        :param customer: The Customer to look up
-        :return: A list of Payment objects belonging to that customer
+        :param customer (Customer): The Customer to look up
+        :return (list[Payment]): A list of Payment objects belonging to that
+            customer
         :raises ValueError: If customer is not registered in the system
         """
         self.__require_registered_customer(customer)
@@ -345,8 +364,8 @@ class NurserySystem:
         """
         Retrieve all payments made toward a specific order
 
-        :param order: The Order to look up
-        :return: A list of Payment objects for that order
+        :param order (Order): The Order to look up
+        :return (list[Payment]): A list of Payment objects for that order
         :raises ValueError: If the order is not in the system
         """
         if order not in self.__history.order_list:
@@ -361,7 +380,7 @@ class NurserySystem:
         """
         Print a readable list of payments made by a specific customer
 
-        :param customer: The customer to look up
+        :param customer (Customer): The customer to look up
         """
         self.__payment_history.display_customer_payments(customer)
 
@@ -369,7 +388,7 @@ class NurserySystem:
         """
         Print a readable list of payments made toward a specific order
 
-        :param order: The order to look up
+        :param order (Order): The order to look up
         """
         self.__payment_history.display_order_payments(order)
 
@@ -389,8 +408,8 @@ class NurserySystem:
         Load a previously saved nursery system and replace this object's
         plants, customers, orders, and payments with the loaded data.
 
-        :return: True if a save file was found and loaded, False if there is no
-            file yet
+        :return (bool): True if a save file was found and loaded, False if
+            there is no file yet
         """
         try:
             with open(self.DATA_FILE, "rb") as file:
@@ -410,7 +429,11 @@ class NurserySystem:
     # ---------- String Method ----------
 
     def __str__(self) -> str:
-        """Returns a summary of the nursery system"""
+        """
+        Returns a summary of the nursery system
+
+        :return (str): A summary of the nursery system
+        """
         return (
             "Nursery System: {} plants, {} customers, {} orders, {} payments"
             .format(

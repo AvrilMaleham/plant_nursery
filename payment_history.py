@@ -15,7 +15,11 @@ class PaymentHistory:
 
     @property
     def payment_list(self) -> list[Payment]:
-        """Get the list of payments"""
+        """
+        Get the list of payments
+
+        :return (list[Payment]): The list of payments
+        """
         # A copy is returned so callers cannot change the internal list
         # directly. New payments still have to go through add_payment(), which
         # checks for duplicate IDs.
@@ -27,7 +31,7 @@ class PaymentHistory:
         """
         Adds a new payment to the list
 
-        :param payment: Payment to add to the list
+        :param payment (Payment): Payment to add to the list
         :raises ValueError: If a payment with the same ID is already in the
             list
         """
@@ -44,8 +48,9 @@ class PaymentHistory:
         """
         Retrieve all payments made by a specific customer
 
-        :param customer: The customer to look up
-        :return: A list of Payment objects belonging to that customer
+        :param customer (Customer): The customer to look up
+        :return (list[Payment]): A list of Payment objects belonging to that
+            customer
         """
         matching_payments = []
         for payment in self.__payment_list:
@@ -57,8 +62,8 @@ class PaymentHistory:
         """
         Retrieve all payments made toward a specific order
 
-        :param order: The order to look up
-        :return: A list of Payment objects for that order
+        :param order (Order): The order to look up
+        :return (list[Payment]): A list of Payment objects for that order
         """
         matching_payments = []
         for payment in self.__payment_list:
@@ -79,7 +84,7 @@ class PaymentHistory:
         """
         Print a readable list of payments made by a specific customer
 
-        :param customer: The customer to look up
+        :param customer (Customer): The customer to look up
         """
         matching_payments = self.get_customer_payments(customer)
         if not matching_payments:
@@ -93,7 +98,7 @@ class PaymentHistory:
         """
         Print a readable list of payments made toward a specific order
 
-        :param order: The order to look up
+        :param order (Order): The order to look up
         """
         matching_payments = self.get_order_payments(order)
         if not matching_payments:

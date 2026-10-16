@@ -13,7 +13,11 @@ class CustomerDirectory:
 
     @property
     def customer_list(self) -> list[Customer]:
-        """Get the list of customer"""
+        """
+        Get the list of customers
+
+        :return (list[Customer]): The list of customers
+        """
         # A copy is returned so callers cannot change the internal list
         # directly. New customers still have to go through add_customer(),
         # which checks for duplicate IDs.
@@ -25,7 +29,7 @@ class CustomerDirectory:
         """
         Adds a new customer to the list
 
-        :param customer: Customer to add to the list
+        :param customer (Customer): Customer to add to the list
         :raises TypeError: If customer is not a Customer object
         :raises ValueError: If a customer with the same ID is already in the
             list
@@ -48,9 +52,9 @@ class CustomerDirectory:
         """
         Return customers of one type
 
-        :param customer_type: The customer_type() value to match, such as
+        :param customer_type (str): The customer_type() value to match, such as
             staff, student, or community
-        :return: A list of matching Customer objects
+        :return (list[Customer]): A list of matching Customer objects
         """
         matching_customers = []
         # customer_type() is abstract, so each subclass supplies its own label
@@ -96,8 +100,8 @@ class CustomerDirectory:
         """
         Print customers of one type
 
-        :param customer_type: The customer_type() value to match
-        :param empty_message: Message to print when none are found
+        :param customer_type (str): The customer_type() value to match
+        :param empty_message (str): Message to print when none are found
         """
         matching_customers = self.get_customers_by_type(customer_type)
         if not matching_customers:
