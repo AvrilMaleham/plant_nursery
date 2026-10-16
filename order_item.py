@@ -15,10 +15,9 @@ class OrderItem:
         :raises ValueError: If quantity is not greater than 0
         :raises InsufficientStockError: If there is not enough stock
         """
-        if quantity < 1:
-            raise ValueError("Minimum order is 1")
-        if not plant.check_stock(quantity):
-            raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
+        # Quantity and stock are checked here so an order line owns that rule,
+        # whether it is created on its own or as part of an order.
+        OrderItem.validate(plant, quantity)
 
         self.__plant = plant
         self.__quantity = quantity
@@ -45,6 +44,21 @@ class OrderItem:
         return self.__item_cost
 
     # ---------- Methods ----------
+
+    @staticmethod
+    def validate(plant: Plant, quantity: int) -> None:
+        """
+        Check that this quantity of the plant can be ordered
+
+        :param plant: The plant being ordered
+        :param quantity: Quantity in that plant's sale unit, must be at least 1
+        :raises ValueError: If quantity is not greater than 0
+        :raises InsufficientStockError: If there is not enough stock
+        """
+        if quantity < 1:
+            raise ValueError("Minimum order is 1")
+        if not plant.check_stock(quantity):
+            raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
 
     def __calculate_cost(self) -> float:
         """

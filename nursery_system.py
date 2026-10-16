@@ -131,6 +131,20 @@ class NurserySystem:
                 return customer
         raise ValueError(f"No customer found with ID {customer_id}")
 
+    def __require_registered_customer(self, customer: Customer) -> None:
+        """
+        Confirm the customer is registered, matching by ID rather than object identity
+
+        :param customer: The customer to look up
+        :raises ValueError: If the customer is not registered in the system
+        """
+        # find_customer matches on ID, so a different Python object with the same ID
+        # still counts as registered. The message here is the registration error.
+        try:
+            self.find_customer(customer.cust_id)
+        except ValueError:
+            raise ValueError("Customer is not registered in the system") from None
+
     def display_all_customers(self) -> None:
         """Print a readable list of every customer in the directory"""
         self.__directory.display_all_customers()
@@ -166,13 +180,7 @@ class NurserySystem:
         # Registration is checked by ID rather than `customer in list` / `plant in list`.
         # That way a Customer or Plant with the same ID is accepted even if it is not
         # the exact same Python object that was originally added.
-        customer_found = False
-        for existing_customer in self.__directory.customer_list:
-            if existing_customer.cust_id == customer.cust_id:
-                customer_found = True
-                break
-        if not customer_found:
-            raise ValueError("Customer is not registered in the system")
+        self.__require_registered_customer(customer)
 
         for plant, _quantity in items:
             plant_found = False
@@ -248,15 +256,7 @@ class NurserySystem:
         :return: A list of Order objects belonging to that customer
         :raises ValueError: If customer is not registered in the system
         """
-        # Same ID check as place_order, so history can be requested without needing
-        # the original Customer object that was added to the directory.
-        customer_found = False
-        for existing_customer in self.__directory.customer_list:
-            if existing_customer.cust_id == customer.cust_id:
-                customer_found = True
-                break
-        if not customer_found:
-            raise ValueError("Customer is not registered in the system")
+        self.__require_registered_customer(customer)
         return self.__history.get_customer_order_history(customer)
 
     def display_all_orders(self) -> None:
@@ -275,13 +275,7 @@ class NurserySystem:
         :raises ValueError: If the customer or order is not in the system, the customer
             does not own the order, or the amount is more than what is still owed
         """
-        customer_found = False
-        for existing_customer in self.__directory.customer_list:
-            if existing_customer.cust_id == payment.customer.cust_id:
-                customer_found = True
-                break
-        if not customer_found:
-            raise ValueError("Customer is not registered in the system")
+        self.__require_registered_customer(payment.customer)
 
         if payment.order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
@@ -314,13 +308,7 @@ class NurserySystem:
         :return: A list of Payment objects belonging to that customer
         :raises ValueError: If customer is not registered in the system
         """
-        customer_found = False
-        for existing_customer in self.__directory.customer_list:
-            if existing_customer.cust_id == customer.cust_id:
-                customer_found = True
-                break
-        if not customer_found:
-            raise ValueError("Customer is not registered in the system")
+        self.__require_registered_customer(customer)
         return self.__payment_history.get_customer_payments(customer)
 
     def get_order_payments(self, order: Order) -> list[Payment]:

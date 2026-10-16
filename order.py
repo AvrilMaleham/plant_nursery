@@ -4,7 +4,7 @@ from datetime import datetime, date
 from customer import Customer
 from plant import Plant
 from order_item import OrderItem
-from exceptions import InsufficientStockError, OrderCannotBeCollectedError, OrderCannotBeCancelledError
+from exceptions import OrderCannotBeCollectedError, OrderCannotBeCancelledError
 
 # The three statuses come from Brent's notes and are treated as a fixed set.
 # A Literal type is used so the allowed values are explicit even though status
@@ -32,17 +32,14 @@ class Order:
         if not items:
             raise ValueError("An order must contain at least one item")
 
-        # Stock is checked for every item before any OrderItem is created, so a later
-        # line running out of stock cannot leave an earlier line already reduced.
+        # Every line is checked before any OrderItem is created, so a later line
+        # failing cannot leave an earlier line's stock already reduced.
         seen_plant_ids = []
         for plant, quantity in items:
-            if quantity < 1:
-                raise ValueError("Minimum order is 1")
+            OrderItem.validate(plant, quantity)
             if plant.plant_id in seen_plant_ids:
                 raise ValueError("Each plant can only appear once on an order")
             seen_plant_ids.append(plant.plant_id)
-            if not plant.check_stock(quantity):
-                raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
 
         # UUID keeps order IDs unique without a running counter.
         self.__order_id = uuid.uuid4()
