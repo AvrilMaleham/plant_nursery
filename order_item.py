@@ -1,9 +1,15 @@
 from plant import Plant
 from exceptions import InsufficientStockError
 
+# Ten or more of the same plant on one line gets this discount.
+BULK_DISCOUNT_QUANTITY = 10
+BULK_DISCOUNT_RATE = 0.10
+
 
 class OrderItem:
-    """Represents one plant type within an order, with its quantity and line cost"""
+    """
+    Represents one plant type within an order, with its quantity and line cost
+    """
 
     def __init__(self, plant: Plant, quantity: int) -> None:
         """
@@ -58,19 +64,22 @@ class OrderItem:
         if quantity < 1:
             raise ValueError("Minimum order is 1")
         if not plant.check_stock(quantity):
-            raise InsufficientStockError(f"Insufficient stock: only {plant.plant_stock} available")
+            raise InsufficientStockError(
+                f"Insufficient stock: only {plant.plant_stock} available")
 
     def __calculate_cost(self) -> float:
         """
-        Calculate the line cost, applying a 10% discount for quantities of 10 or more.
+        Calculate the line cost, applying a 10% discount for quantities of 10
+        or more.
 
-        :return: The item cost after any applicable discount, rounded to 2 decimal places
+        :return: The item cost after any applicable discount, rounded to 2
+            decimal places
         """
         subtotal = self.__plant.plant_price * self.__quantity
-        # 10 or more of the same plant (same catalog entry, so the same pot size
-        # or the same seedling type) gets 10% off this line only.
-        if self.__quantity >= 10:
-            return round(subtotal * 0.9, 2)
+        # 10 or more of the same plant (same catalog entry, so the same pot
+        # size or the same seedling type) gets 10% off this line only.
+        if self.__quantity >= BULK_DISCOUNT_QUANTITY:
+            return round(subtotal * (1 - BULK_DISCOUNT_RATE), 2)
         return round(subtotal, 2)
 
     def restore_stock(self) -> None:

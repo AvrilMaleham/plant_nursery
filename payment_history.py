@@ -16,8 +16,9 @@ class PaymentHistory:
     @property
     def payment_list(self) -> list[Payment]:
         """Get the list of payments"""
-        # A copy is returned so callers cannot change the internal list directly.
-        # New payments still have to go through add_payment(), which checks for duplicate IDs.
+        # A copy is returned so callers cannot change the internal list
+        # directly. New payments still have to go through add_payment(), which
+        # checks for duplicate IDs.
         return self.__payment_list.copy()
 
     # ---------- Methods ----------
@@ -27,11 +28,15 @@ class PaymentHistory:
         Adds a new payment to the list
 
         :param payment: Payment to add to the list
-        :raises ValueError: If a payment with the same ID is already in the list
+        :raises ValueError: If a payment with the same ID is already in the
+            list
         """
         for existing_payment in self.__payment_list:
             if existing_payment.payment_id == payment.payment_id:
-                raise ValueError(f"Payment with ID {payment.payment_id} is already in the list")
+                raise ValueError(
+                    f"Payment with ID {payment.payment_id} "
+                    "is already in the list"
+                )
 
         self.__payment_list.append(payment)
 

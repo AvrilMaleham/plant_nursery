@@ -1,5 +1,10 @@
 from plant import Plant, TreeAndShrub, Perennial, PotPlant, VegetableSeedling
-from customer import Customer, StaffCustomer, StudentCustomer, CommunityCustomer
+from customer import (
+    Customer,
+    StaffCustomer,
+    StudentCustomer,
+    CommunityCustomer,
+)
 from payment import Payment, CreditCardPayment, DebitCardPayment
 from nursery_system import NurserySystem
 from exceptions import (
@@ -9,18 +14,24 @@ from exceptions import (
     OrderCannotBeCancelledError,
 )
 
-# Driver for the nursery system. Each section shows a happy path first, then the
-# error cases for that feature, so it is clear what the classes accept and reject.
+# Driver for the nursery system. Each section shows a happy path first, then
+# the error cases for that feature, so it is clear what the classes accept and
+# reject.
 
-# Initialise the system. All plants, customers, and orders go through this object
-# rather than being stored in the driver itself. If a previous run saved data,
-# that file is loaded here so plants, customers, orders, and payments come back.
+# Initialise the system. All plants, customers, and orders go through this
+# object rather than being stored in the driver itself. If a previous run saved
+# data, that file is loaded here so plants, customers, orders, and payments
+# come back.
 system = NurserySystem()
 
-# A second run should show the saved nursery, not add another copy of the demo data.
+# A second run should show the saved nursery, not add another copy of the demo
+# data.
 if system.loaded_from_file:
     print("--- Loaded existing nursery data ---")
-    print(f"Delete {NurserySystem.DATA_FILE} to run the full demonstration again.\n")
+    print(
+        f"Delete {NurserySystem.DATA_FILE} to run the full "
+        "demonstration again.\n"
+    )
     print("--- All Plants ---")
     system.display_all_plants()
     print()
@@ -40,7 +51,8 @@ if system.loaded_from_file:
 
 # ---------- Plants ----------
 
-# Add one plant from each subclass so the catalog and later order examples have stock to use.
+# Add one plant from each subclass so the catalog and later order examples have
+# stock to use.
 print("--- Adding Plants ---")
 rose = TreeAndShrub("Rose", 15.99, 25)
 system.add_plant(rose)
@@ -60,13 +72,17 @@ fern = PotPlant("Fern", 8.00, 15, "small")
 system.add_plant(fern)
 
 print("Plants added successfully")
-# Tomato was created without seedlings_per_punnet, so it uses Brent's average of 6.
-print(f"Tomato sale unit: {tomato.sale_unit()}, seedlings per punnet: {tomato.seedlings_per_punnet}")
+# Tomato was created without seedlings_per_punnet, so it uses Brent's average
+# of 6.
+print(
+    f"Tomato sale unit: {tomato.sale_unit()}, "
+    f"seedlings per punnet: {tomato.seedlings_per_punnet}"
+)
 print(f"Orchid sale unit: {orchid.sale_unit()}, pot size: {orchid.pot_size}")
 print(f"Rose sale unit: {rose.sale_unit()}\n")
 
-# Full catalog, including every plant just added. Later this is printed again after
-# a sold out orchid can be compared with the available list.
+# Full catalog, including every plant just added. Later this is printed again
+# after a sold out orchid can be compared with the available list.
 print("--- All Plants ---")
 system.display_all_plants()
 print()
@@ -92,7 +108,8 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# A plant cannot be created already sold out. Stock of 0 is only valid after an order.
+# A plant cannot be created already sold out. Stock of 0 is only valid after an
+# order.
 print("--- Error: Plant created with zero stock ---")
 try:
     bad_plant = PotPlant("Aloe", 10.00, 0, "small")
@@ -124,7 +141,8 @@ system.add_customer(avril)
 jane = StudentCustomer("Jane", cust_phone="021-555-0199")
 system.add_customer(jane)
 
-# Two customers with the same name but different IDs, to show that identity is by ID.
+# Two customers with the same name but different IDs, to show that identity is
+# by ID.
 another_jane = CommunityCustomer("Jane", cust_email="jane2@email.com")
 system.add_customer(another_jane)
 
@@ -147,14 +165,16 @@ print("--- Community Customers ---")
 system.display_community_customers()
 print()
 
-# Customer is abstract, so a customer must be created as one of the three subclasses.
+# Customer is abstract, so a customer must be created as one of the three
+# subclasses.
 print("--- Error: Cannot create a Customer directly ---")
 try:
     bad_customer = Customer("John", cust_email="john@email.com")
 except TypeError as e:
     print(f"Caught: {e}\n")
 
-# A customer must have at least an email or a phone number so they can be contacted.
+# A customer must have at least an email or a phone number so they can be
+# contacted.
 print("--- Error: Customer with no contact details ---")
 try:
     bad_customer = StaffCustomer("John")
@@ -167,7 +187,8 @@ jane.cust_name = "Jane Smith"
 jane.cust_email = "jane@email.com"
 print(f"Jane after update: {jane}\n")
 
-# Avril only has an email, so clearing it would leave no contact method and is rejected.
+# Avril only has an email, so clearing it would leave no contact method and is
+# rejected.
 print("--- Error: Clearing last contact method ---")
 try:
     avril.cust_email = ""
@@ -178,8 +199,8 @@ except ValueError as e:
 
 print("--- Placing Orders ---")
 
-# A staff order of 3 roses. Stock drops immediately, the 1% staff discount comes off
-# the order total, and that total is added to what Avril owes.
+# A staff order of 3 roses. Stock drops immediately, the 1% staff discount
+# comes off the order total, and that total is added to what Avril owes.
 order1 = system.place_order(avril, [(rose, 3)])
 print(f"Order placed: {order1}")
 print(f"Rose stock after order: {rose.plant_stock}")
@@ -197,8 +218,8 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# 10 or more of the same plant gets 10% off that item, then the student 5% comes off
-# the order as a whole.
+# 10 or more of the same plant gets 10% off that item, then the student 5%
+# comes off the order as a whole.
 order2 = system.place_order(jane, [(tomato, 12)])
 print(f"Order placed (item 10% then student 5%): {order2}")
 print(f"Expected item cost: 12 x $4.50 x 0.9 = ${12 * 4.50 * 0.9:.2f}")
@@ -206,15 +227,18 @@ print(f"Expected order total: $48.60 x 0.95 = ${48.60 * 0.95:.2f}")
 print(f"Actual total: ${order2.order_total}")
 print(f"Jane balance after order: {jane.balance}\n")
 
-# 10 or more of the same pot plant in the same pot size also gets 10% off that item.
+# 10 or more of the same pot plant in the same pot size also gets 10% off that
+# item.
 order_ferns = system.place_order(jane, [(fern, 10)])
-print(f"Order placed (10 small ferns, item 10% then student 5%): {order_ferns}")
+print(
+    f"Order placed (10 small ferns, item 10% then student 5%): {order_ferns}")
 print(f"Expected item cost: 10 x $8.00 x 0.9 = ${10 * 8.00 * 0.9:.2f}")
 print(f"Expected order total: $72.00 x 0.95 = ${72.00 * 0.95:.2f}")
 print(f"Actual total: ${order_ferns.order_total}")
 print(f"Jane balance after fern order: {jane.balance}\n")
 
-# Jane now owes more than $100 across two pending orders, so students cannot order more.
+# Jane now owes more than $100 across two pending orders, so students cannot
+# order more.
 print("--- Error: Student owing more than $100 ---")
 try:
     system.place_order(jane, [(lavender, 1)])
@@ -234,14 +258,16 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# Ordering more than current stock is rejected so stock can never go below zero.
+# Ordering more than current stock is rejected so stock can never go below
+# zero.
 print("--- Error: Order exceeding available stock ---")
 try:
     system.place_order(avril, [(orchid, 100)])
 except InsufficientStockError as e:
     print(f"Caught: {e}\n")
 
-# Mary is a valid Customer object but has not been added to the system, so the order is refused.
+# Mary is a valid Customer object but has not been added to the system, so the
+# order is refused.
 print("--- Error: Order for unregistered customer ---")
 try:
     unregistered = CommunityCustomer("Mary", cust_email="mary@email.com")
@@ -257,8 +283,8 @@ try:
 except ValueError as e:
     print(f"Caught: {e}\n")
 
-# The same plant cannot appear twice on one order, so the bulk discount is not split
-# across two lines of the same plant.
+# The same plant cannot appear twice on one order, so the bulk discount is not
+# split across two lines of the same plant.
 print("--- Error: Duplicate plant on one order ---")
 try:
     system.place_order(avril, [(rose, 1), (rose, 1)])
@@ -267,9 +293,13 @@ except ValueError as e:
 
 # One order can hold different plant types as separate items.
 print("--- Multi-item Community Order ---")
-order_community = system.place_order(another_jane, [(rose, 4), (orchid, 2), (tomato, 1)])
+order_community = system.place_order(
+    another_jane, [(rose, 4), (orchid, 2), (tomato, 1)])
 print(f"Order placed: {order_community}")
-print("Community customers get 0% off the order total, so the total is just the item costs.")
+print(
+    "Community customers get 0% off the order total, "
+    "so the total is just the item costs."
+)
 print(f"Community Jane balance: {another_jane.balance}\n")
 
 # Community customers can only have one pending order at a time.
@@ -288,7 +318,8 @@ except OrderCannotBeCollectedError as e:
 
 # ---------- Order Status ----------
 
-# Staff may collect while still owing. There is no status setter, this method is the path.
+# Staff may collect while still owing. There is no status setter, this method
+# is the path.
 print("--- Collecting Staff Order ---")
 system.collect_order(order1)
 print(f"Order 1 status: {order1.order_status}")
@@ -308,7 +339,8 @@ try:
 except OrderCannotBeCancelledError as e:
     print(f"Caught: {e}\n")
 
-# Cancelling a pending order restores the stock and takes the total back off the balance.
+# Cancelling a pending order restores the stock and takes the total back off
+# the balance.
 print("--- Cancelling Pending Order ---")
 print(f"Tomato stock before cancel: {tomato.plant_stock}")
 print(f"Jane balance before cancel: {jane.balance}")
@@ -317,15 +349,17 @@ print(f"Order 2 status: {order2.order_status}")
 print(f"Tomato stock after cancel: {tomato.plant_stock}")
 print(f"Jane balance after cancel: {jane.balance}\n")
 
-# Sell out remaining orchids through an order (not the stock setter) so stock can reach 0 legally.
-# All plants should still include orchid at 0 and available plants should not.
+# Sell out remaining orchids through an order (not the stock setter) so stock
+# can reach 0 legally. All plants should still include orchid at 0 and
+# available plants should not.
 print("--- Selling Out Orchid ---")
 order3 = system.place_order(avril, [(orchid, orchid.plant_stock)])
 print(f"Order placed: {order3}")
 print(f"Orchid stock after order: {orchid.plant_stock}")
 print(f"Avril balance after order: {avril.balance}\n")
 
-# Avril now owes more than $100, so staff cannot place another order until it is paid down.
+# Avril now owes more than $100, so staff cannot place another order until it
+# is paid down.
 print("--- Error: Staff owing more than $100 ---")
 try:
     system.place_order(avril, [(lavender, 1)])
@@ -417,11 +451,15 @@ community_credit = CreditCardPayment(
 system.record_payment(community_credit)
 print(f"Payment recorded: {community_credit}")
 print(f"Amount applied to order: {community_credit.amount}")
-print(f"Amount charged (with 1.5% surcharge): {community_credit.amount_charged()}")
+print(
+    "Amount charged (with 1.5% surcharge): "
+    f"{community_credit.amount_charged()}"
+)
 print(f"Order remaining: {order_community.remaining_balance}")
 print(f"Community Jane balance: {another_jane.balance}\n")
 
-# Paid in full, so the community order can be collected, and they can order again.
+# Paid in full, so the community order can be collected, and they can order
+# again.
 print("--- Collect Paid Community Order ---")
 system.collect_order(order_community)
 print(f"Community order status: {order_community.order_status}\n")
@@ -430,8 +468,9 @@ print("--- Community Order After Previous One Collected ---")
 order_community_2 = system.place_order(another_jane, [(lavender, 1)])
 print(f"Order placed: {order_community_2}\n")
 
-# Staff can pay at any time, including toward a collected order that still has a balance.
-# Paying this down lets Avril order again once owing is $100 or less.
+# Staff can pay at any time, including toward a collected order that still has
+# a balance. Paying this down lets Avril order again once owing is $100 or
+# less.
 print("--- Staff Debit Payment to Pay Down Balance ---")
 avril_debit = DebitCardPayment(
     avril, order3, 80.00, "9999000011112222", "Kiwibank"
@@ -462,12 +501,14 @@ except OrderCannotBeCancelledError as e:
 
 # ---------- Search ----------
 
-# Lookups are by ID so plants, customers, and orders can be found after they are created.
+# Lookups are by ID so plants, customers, and orders can be found after they
+# are created.
 print("--- Searching by ID ---")
 # Search for a plant by the ID that was generated on creation.
 found_plant = system.find_plant(rose.plant_id)
 print(f"Found plant: {found_plant}")
-# Search for a customer the same way, by ID rather than name (names are not unique).
+# Search for a customer the same way, by ID rather than name (names are not
+# unique).
 found_customer = system.find_customer(avril.cust_id)
 print(f"Found customer: {found_customer}")
 # Search for an order by its ID.
@@ -503,7 +544,8 @@ print("--- All Payments ---")
 system.display_all_payments()
 print()
 
-# Short count of plants, customers, orders, and payments currently in the system.
+# Short count of plants, customers, orders, and payments currently in the
+# system.
 print("--- System Summary ---")
 print(system)
 

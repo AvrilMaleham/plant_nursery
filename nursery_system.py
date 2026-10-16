@@ -29,7 +29,8 @@ class NurserySystem:
         Otherwise the catalog, directory, and histories start empty.
         """
         # The collections live here so the driver only talks to one object.
-        # Orders can then only be created for plants and customers that are already registered.
+        # Orders can then only be created for plants and customers that are
+        # already registered.
         self.__catalog = PlantCatalog()
         self.__directory = CustomerDirectory()
         self.__history = OrderHistory()
@@ -60,7 +61,10 @@ class NurserySystem:
 
     @property
     def loaded_from_file(self) -> bool:
-        """True if plants, customers, orders, and payments were restored from the save file"""
+        """
+        True if plants, customers, orders, and payments were restored from the
+        save file
+        """
         return self.__loaded_from_file
 
     # ---------- Plant Methods ----------
@@ -84,7 +88,8 @@ class NurserySystem:
         :raises ValueError: If no plant with that ID is found
         """
         for plant in self.__catalog.plant_list:
-            # Search is by ID because plant names are not unique (two batches can share a name).
+            # Search is by ID because plant names are not unique (two batches
+            # can share a name).
             if plant.plant_id == plant_id:
                 return plant
         raise ValueError(f"No plant found with ID {plant_id}")
@@ -133,17 +138,20 @@ class NurserySystem:
 
     def __require_registered_customer(self, customer: Customer) -> None:
         """
-        Confirm the customer is registered, matching by ID rather than object identity
+        Confirm the customer is registered, matching by ID rather than object
+        identity
 
         :param customer: The customer to look up
         :raises ValueError: If the customer is not registered in the system
         """
-        # find_customer matches on ID, so a different Python object with the same ID
-        # still counts as registered. The message here is the registration error.
+        # find_customer matches on ID, so a different Python object with the
+        # same ID still counts as registered. The message here is the
+        # registration error.
         try:
             self.find_customer(customer.cust_id)
         except ValueError:
-            raise ValueError("Customer is not registered in the system") from None
+            raise ValueError(
+                "Customer is not registered in the system") from None
 
     def display_all_customers(self) -> None:
         """Print a readable list of every customer in the directory"""
@@ -163,23 +171,35 @@ class NurserySystem:
 
     # ---------- Order Methods ----------
 
-    def place_order(self, customer: Customer, items: list[tuple[Plant, int]], order_date: Optional[str] = None) -> Order:
+    def place_order(
+        self,
+        customer: Customer,
+        items: list[tuple[Plant, int]],
+        order_date: Optional[str] = None,
+    ) -> Order:
         """
-        Place a new order after validating the customer and plants are registered by ID.
-        The customer's place-order rules are checked before the order is created.
+        Place a new order after validating the customer and plants are
+        registered by ID.
+        The customer's place-order rules are checked before the order is
+        created.
         Stock is reduced immediately when the order is created.
 
         :param customer: The Customer placing the order
         :param items: A list of (plant, quantity) pairs to include on the order
-        :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
+        :param order_date: Optional order date in DD-MM-YYYY format, defaults
+            to today
         :return: The newly created Order object
-        :raises ValueError: If customer or a plant is not registered, or the order date is invalid
-        :raises OrderNotAllowedError: If the customer is not allowed to place an order
-        :raises InsufficientStockError: If there is not enough stock for an item
+        :raises ValueError: If customer or a plant is not registered, or the
+            order date is invalid
+        :raises OrderNotAllowedError: If the customer is not allowed to place
+            an order
+        :raises InsufficientStockError: If there is not enough stock for an
+            item
         """
-        # Registration is checked by ID rather than `customer in list` / `plant in list`.
-        # That way a Customer or Plant with the same ID is accepted even if it is not
-        # the exact same Python object that was originally added.
+        # Registration is checked by ID rather than `customer in list` / `plant
+        # in list`. That way a Customer or Plant with the same ID is accepted
+        # even if it is not the exact same Python object that was originally
+        # added.
         self.__require_registered_customer(customer)
 
         for plant, _quantity in items:
@@ -197,13 +217,16 @@ class NurserySystem:
         if not customer.can_place_order(pending_count):
             if customer.customer_type() == "community":
                 raise OrderNotAllowedError(
-                    "Community customers may only have one pending order at a time"
+                    "Community customers may only have "
+                    "one pending order at a time"
                 )
             raise OrderNotAllowedError(
-                "Staff and students cannot place a new order while owing more than $100"
+                "Staff and students cannot place a new order "
+                "while owing more than $100"
             )
 
-        # Creating the Order reduces stock and adds the total to the customer balance.
+        # Creating the Order reduces stock and adds the total to the customer
+        # balance.
         order = Order(customer, items, order_date)
         self.__history.add_order(order)
         return order
@@ -231,13 +254,14 @@ class NurserySystem:
         """
         if order not in self.__history.order_list:
             raise ValueError("Order is not in the system")
-        # collect_order() on Order enforces the legal status change, this only confirms
-        # the order belongs to this nursery first.
+        # collect_order() on Order enforces the legal status change, this only
+        # confirms the order belongs to this nursery first.
         order.collect_order()
 
     def cancel_order(self, order: Order) -> None:
         """
-        Cancel a pending unpaid order, restore the stock, and take the total off the customer balance
+        Cancel a pending unpaid order, restore the stock, and take the total
+        off the customer balance
 
         :param order: The Order to cancel
         :raises ValueError: If the order is not in the system
@@ -267,13 +291,17 @@ class NurserySystem:
 
     def record_payment(self, payment: Payment) -> None:
         """
-        Record a payment toward an order. The amount is applied to the order and
-        taken off the customer balance. A payment is accepted whenever the order
+        Record a payment toward an order. The amount is applied to the order
+        and
+        taken off the customer balance. A payment is accepted whenever the
+        order
         still has a remaining balance.
 
         :param payment: The Payment to record
-        :raises ValueError: If the customer or order is not in the system, the customer
-            does not own the order, or the amount is more than what is still owed
+        :raises ValueError: If the customer or order is not in the system, the
+            customer
+            does not own the order, or the amount is more than what is still
+            owed
         """
         self.__require_registered_customer(payment.customer)
 
@@ -281,9 +309,11 @@ class NurserySystem:
             raise ValueError("Order is not in the system")
 
         if payment.customer.cust_id != payment.order.customer.cust_id:
-            raise ValueError("Payment customer must be the customer on the order")
+            raise ValueError(
+                "Payment customer must be the customer on the order")
 
-        # record_payment() on Order enforces amount > 0 and not more than remaining.
+        # record_payment() on Order enforces amount > 0 and not more than
+        # remaining.
         payment.order.record_payment(payment.amount)
         self.__payment_history.add_payment(payment)
 
@@ -359,13 +389,15 @@ class NurserySystem:
         Load a previously saved nursery system and replace this object's
         plants, customers, orders, and payments with the loaded data.
 
-        :return: True if a save file was found and loaded, False if there is no file yet
+        :return: True if a save file was found and loaded, False if there is no
+            file yet
         """
         try:
             with open(self.DATA_FILE, "rb") as file:
                 loaded = pickle.load(file)
         except FileNotFoundError:
-            # First run has nothing to restore, so the empty collections stay in place.
+            # First run has nothing to restore, so the empty collections stay
+            # in place.
             return False
 
         self.__catalog = loaded.__catalog

@@ -5,11 +5,25 @@ from datetime import datetime, date
 from customer import Customer
 from order import Order
 
+# Added to what the customer pays. Debit cards have no surcharge.
+CREDIT_CARD_SURCHARGE_RATE = 0.015
+DEBIT_CARD_SURCHARGE_RATE = 0.0
+
 
 class Payment(ABC):
-    """An abstract class representing a payment made by a customer toward a specific order"""
+    """
+    An abstract class representing a payment made by a customer toward a
+    specific order
+    """
 
-    def __init__(self, customer: Customer, order: Order, amount: float, card_number: str, payment_date: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        customer: Customer,
+        order: Order,
+        amount: float,
+        card_number: str,
+        payment_date: Optional[str] = None,
+    ) -> None:
         """
         Initialise a new Payment object
 
@@ -17,12 +31,15 @@ class Payment(ABC):
         :param order: The order this payment is toward
         :param amount: Amount applied to the order, must be greater than 0
         :param card_number: Card number for this payment
-        :param payment_date: Optional payment date in DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number is missing, or the payment date is invalid
+        :param payment_date: Optional payment date in DD-MM-YYYY format,
+            defaults to today
+        :raises ValueError: If amount is not greater than 0, card number is
+            missing, or the payment date is invalid
         """
         if amount <= 0:
             raise ValueError("Payment amount must be greater than 0")
-        # Both credit and debit payments record a card number, so the check lives here.
+        # Both credit and debit payments record a card number, so the check
+        # lives here.
         if not card_number:
             raise ValueError("Card number is required")
 
@@ -37,8 +54,8 @@ class Payment(ABC):
         self.__payment_date = self.__validate_payment_date(payment_date)
 
     # ---------- Getters and Setters ----------
-    # A recorded payment is a snapshot. ID, customer, order, amount, card number,
-    # and date are not changed after creation.
+    # A recorded payment is a snapshot. ID, customer, order, amount, card
+    # number, and date are not changed after creation.
 
     @property
     def payment_id(self) -> uuid.UUID:
@@ -74,16 +91,19 @@ class Payment(ABC):
 
     def __validate_payment_date(self, payment_date: str) -> str:
         """
-        Validate that the payment date is a real calendar date in DD-MM-YYYY format
+        Validate that the payment date is a real calendar date in DD-MM-YYYY
+        format
 
         :param payment_date: Date string to validate
         :return: The validated date string
-        :raises ValueError: If the date is not a valid calendar date in DD-MM-YYYY format
+        :raises ValueError: If the date is not a valid calendar date in
+            DD-MM-YYYY format
         """
         try:
             datetime.strptime(payment_date, "%d-%m-%Y")
         except ValueError:
-            raise ValueError("Payment date must be a valid date in DD-MM-YYYY format")
+            raise ValueError(
+                "Payment date must be a valid date in DD-MM-YYYY format")
         return payment_date
 
     def amount_charged(self) -> float:
@@ -92,8 +112,9 @@ class Payment(ABC):
 
         :return: The charged amount, rounded to 2 decimal places
         """
-        # surcharge_rate() is abstract, so whichever subclass this object really is
-        # supplies the rate, the same way apply_discount() uses discount_rate().
+        # surcharge_rate() is abstract, so whichever subclass this object
+        # really is supplies the rate, the same way apply_discount() uses
+        # discount_rate().
         return round(self.__amount * (1 + self.surcharge_rate()), 2)
 
     @abstractmethod
@@ -121,9 +142,20 @@ class Payment(ABC):
 
 
 class CreditCardPayment(Payment):
-    """Represents a subclass of payment called CreditCardPayment, with a 1.5% surcharge"""
+    """
+    Represents a subclass of payment called CreditCardPayment, with a 1.5%
+    surcharge
+    """
 
-    def __init__(self, customer: Customer, order: Order, amount: float, card_number: str, expiry_date: str, payment_date: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        customer: Customer,
+        order: Order,
+        amount: float,
+        card_number: str,
+        expiry_date: str,
+        payment_date: Optional[str] = None,
+    ) -> None:
         """
         Initialise a new CreditCardPayment object
 
@@ -132,8 +164,10 @@ class CreditCardPayment(Payment):
         :param amount: Amount applied to the order, must be greater than 0
         :param card_number: Credit card number
         :param expiry_date: Card expiry date
-        :param payment_date: Optional payment date in DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number or expiry is missing,
+        :param payment_date: Optional payment date in DD-MM-YYYY format,
+            defaults to today
+        :raises ValueError: If amount is not greater than 0, card number or
+            expiry is missing,
             or the payment date is invalid
         """
         if not expiry_date:
@@ -153,7 +187,7 @@ class CreditCardPayment(Payment):
 
     def surcharge_rate(self) -> float:
         """Return this payment's surcharge rate as a decimal"""
-        return 0.015
+        return CREDIT_CARD_SURCHARGE_RATE
 
     def __str__(self) -> str:
         """Returns a readable string of the credit card payment details"""
@@ -163,9 +197,19 @@ class CreditCardPayment(Payment):
 
 
 class DebitCardPayment(Payment):
-    """Represents a subclass of payment called DebitCardPayment, with no surcharge"""
+    """
+    Represents a subclass of payment called DebitCardPayment, with no surcharge
+    """
 
-    def __init__(self, customer: Customer, order: Order, amount: float, card_number: str, bank_name: str, payment_date: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        customer: Customer,
+        order: Order,
+        amount: float,
+        card_number: str,
+        bank_name: str,
+        payment_date: Optional[str] = None,
+    ) -> None:
         """
         Initialise a new DebitCardPayment object
 
@@ -174,8 +218,10 @@ class DebitCardPayment(Payment):
         :param amount: Amount applied to the order, must be greater than 0
         :param card_number: Debit card number
         :param bank_name: Name of the bank the card is with
-        :param payment_date: Optional payment date in DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number or bank name is missing,
+        :param payment_date: Optional payment date in DD-MM-YYYY format,
+            defaults to today
+        :raises ValueError: If amount is not greater than 0, card number or
+            bank name is missing,
             or the payment date is invalid
         """
         if not bank_name:
@@ -195,7 +241,7 @@ class DebitCardPayment(Payment):
 
     def surcharge_rate(self) -> float:
         """Return this payment's surcharge rate as a decimal"""
-        return 0.0
+        return DEBIT_CARD_SURCHARGE_RATE
 
     def __str__(self) -> str:
         """Returns a readable string of the debit card payment details"""

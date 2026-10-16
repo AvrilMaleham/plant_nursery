@@ -11,30 +11,41 @@ PotSize = Literal["small", "medium", "large"]
 class Plant(ABC):
     """An abstract class representing a plant available for sale"""
 
-    def __init__(self, plant_name: str, plant_price: float, plant_stock: int) -> None:
+    def __init__(
+        self,
+        plant_name: str,
+        plant_price: float,
+        plant_stock: int,
+    ) -> None:
         """
         Initialise a new Plant object
 
-        :param plant_name: Name of the plant (does not need to be unique, same name can have different price/stock)
+        :param plant_name: Name of the plant (does not need to be unique, same
+            name can have different price/stock)
         :param plant_price: Price of the plant, must be greater than 0
-        :param plant_stock: Stock on hand for this plant, must be greater than 0
-        :raises ValueError: If price is not greater than 0, or stock is not greater than 0
+        :param plant_stock: Stock on hand for this plant, must be greater than
+            0
+        :raises ValueError: If price is not greater than 0, or stock is not
+            greater than 0
         """
 
-        # Name and data types are assumed to be provided correctly by the caller.
-        # UUID is used so each plant batch gets a unique ID without a counter or database.
-        # Two plants can share a name (different batches, different prices) and still be told apart.
+        # Name and data types are assumed to be provided correctly by the
+        # caller. UUID is used so each plant batch gets a unique ID without a
+        # counter or database. Two plants can share a name (different batches,
+        # different prices) and still be told apart.
         self.__plant_id = uuid.uuid4()
         self.__plant_name = plant_name
-        # Price and stock go through their setters, so creation uses the same checks as an update.
+        # Price and stock go through their setters, so creation uses the same
+        # checks as an update.
         self.plant_price = plant_price
         self.plant_stock = plant_stock
 
     # ---------- Getters and Setters ----------
-    # Name identifies the plant and should not change once it is cataloged, so it
-    # has a getter only. Price can be updated if a batch is repriced.
-    # Stock can be restocked to a positive amount through this setter, but reaching
-    # exactly zero is only allowed when reduce_stock() runs as part of an order.
+    # Name identifies the plant and should not change once it is cataloged, so
+    # it has a getter only. Price can be updated if a batch is repriced. Stock
+    # can be restocked to a positive amount through this setter, but reaching
+    # exactly zero is only allowed when reduce_stock() runs as part of an
+    # order.
 
     @property
     def plant_id(self) -> uuid.UUID:
@@ -72,16 +83,21 @@ class Plant(ABC):
     def plant_stock(self, value: int) -> None:
         """
         Directly set the plant stock level.
-        Stock cannot be set to 0, it can only reach exactly zero when reduced through an order.
+        Stock cannot be set to 0, it can only reach exactly zero when reduced
+        through an order.
 
         :param value: New stock level, must be greater than 0
         :raises ValueError: If value is not greater than 0
         """
-        # Blocking 0 (and negatives) here stops staff from marking a plant as sold out
-        # without going through an order. reduce_stock() subtracts from the private field
-        # directly, so it can still land on exactly zero when the last plant is sold.
+        # Blocking 0 (and negatives) here stops staff from marking a plant as
+        # sold out without going through an order. reduce_stock() subtracts
+        # from the private field directly, so it can still land on exactly zero
+        # when the last plant is sold.
         if value <= 0:
-            raise ValueError("Plant stock must be greater than 0. Stock can only reach zero through an order")
+            raise ValueError(
+                "Plant stock must be greater than 0. "
+                "Stock can only reach zero through an order"
+            )
         self.__plant_stock = value
 
     # ---------- Methods ----------
@@ -99,16 +115,19 @@ class Plant(ABC):
         """
         Reduce stock when an order goes through. Stock can never be below zero
 
-        :param quantity: Quantity to remove from stock, in this plant's sale unit
+        :param quantity: Quantity to remove from stock, in this plant's sale
+            unit
         :raises ValueError: If quantity is not positive
         :raises InsufficientStockError: If there isn't enough stock to cover it
         """
         if quantity <= 0:
             raise ValueError("Quantity to reduce must be greater than 0")
-        # check_stock is used here so stock can never go below zero. Landing on 0 is allowed
-        # because that is how a plant becomes unavailable after being fully ordered.
+        # check_stock is used here so stock can never go below zero. Landing on
+        # 0 is allowed because that is how a plant becomes unavailable after
+        # being fully ordered.
         if not self.check_stock(quantity):
-            raise InsufficientStockError(f"Insufficient stock: only {self.__plant_stock} available")
+            raise InsufficientStockError(
+                f"Insufficient stock: only {self.__plant_stock} available")
         self.__plant_stock -= quantity
 
     def restore_stock(self, quantity: int) -> None:
@@ -156,7 +175,10 @@ class IndividualPlant(Plant):
 
 
 class TreeAndShrub(IndividualPlant):
-    """Represents a subclass of plant called TreeAndShrub, priced and stocked per plant"""
+    """
+    Represents a subclass of plant called TreeAndShrub, priced and stocked per
+    plant
+    """
 
     def plant_type(self) -> str:
         """Return the type of plant"""
@@ -164,7 +186,10 @@ class TreeAndShrub(IndividualPlant):
 
 
 class Perennial(IndividualPlant):
-    """Represents a subclass of plant called Perennial, priced and stocked per plant"""
+    """
+    Represents a subclass of plant called Perennial, priced and stocked per
+    plant
+    """
 
     def plant_type(self) -> str:
         """Return the type of plant"""
@@ -172,9 +197,18 @@ class Perennial(IndividualPlant):
 
 
 class PotPlant(Plant):
-    """Represents a subclass of plant called PotPlant, priced and stocked by pot size"""
+    """
+    Represents a subclass of plant called PotPlant, priced and stocked by pot
+    size
+    """
 
-    def __init__(self, plant_name: str, plant_price: float, plant_stock: int, pot_size: PotSize) -> None:
+    def __init__(
+        self,
+        plant_name: str,
+        plant_price: float,
+        plant_stock: int,
+        pot_size: PotSize,
+    ) -> None:
         """
         Initialise a new PotPlant object
 
@@ -182,7 +216,8 @@ class PotPlant(Plant):
         :param plant_price: Price for this pot size, must be greater than 0
         :param plant_stock: Number of pots on hand, must be greater than 0
         :param pot_size: Pot size, must be small, medium, or large
-        :raises ValueError: If pot size is invalid, price is not greater than 0, or stock is not greater than 0
+        :raises ValueError: If pot size is invalid, price is not greater than
+            0, or stock is not greater than 0
         """
         if pot_size not in get_args(PotSize):
             raise ValueError(f"Pot size must be one of {get_args(PotSize)}")
@@ -209,17 +244,28 @@ class PotPlant(Plant):
 
 
 class VegetableSeedling(Plant):
-    """Represents a subclass of plant called VegetableSeedling, priced and stocked per punnet"""
+    """
+    Represents a subclass of plant called VegetableSeedling, priced and stocked
+    per punnet
+    """
 
-    def __init__(self, plant_name: str, plant_price: float, plant_stock: int, seedlings_per_punnet: int = 6) -> None:
+    def __init__(
+        self,
+        plant_name: str,
+        plant_price: float,
+        plant_stock: int,
+        seedlings_per_punnet: int = 6,
+    ) -> None:
         """
         Initialise a new VegetableSeedling object
 
         :param plant_name: Name of the plant
         :param plant_price: Price per punnet, must be greater than 0
         :param plant_stock: Number of punnets on hand, must be greater than 0
-        :param seedlings_per_punnet: Seedlings in each punnet, defaults to 6, must be greater than 0
-        :raises ValueError: If seedlings per punnet is not greater than 0, price is not greater than 0, or stock is not greater than 0
+        :param seedlings_per_punnet: Seedlings in each punnet, defaults to 6,
+            must be greater than 0
+        :raises ValueError: If seedlings per punnet is not greater than 0,
+            price is not greater than 0, or stock is not greater than 0
         """
         if seedlings_per_punnet <= 0:
             raise ValueError("Seedlings per punnet must be greater than 0")

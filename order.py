@@ -13,27 +13,39 @@ OrderStatus = Literal["pending", "collected", "cancelled"]
 
 
 class Order:
-    """Represents an order made by a customer, bringing together one or more order items"""
+    """
+    Represents an order made by a customer, bringing together one or more order
+    items
+    """
 
-    def __init__(self, customer: Customer, items: list[tuple[Plant, int]], order_date: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        customer: Customer,
+        items: list[tuple[Plant, int]],
+        order_date: Optional[str] = None,
+    ) -> None:
         """
         Initialise a new Order object
 
         :param customer: The Customer associated with the order
-        :param items: A list of (plant, quantity) pairs, at least one, with no plant repeated
-        :param order_date: Optional order date in DD-MM-YYYY format, defaults to today
-        :raises ValueError: If there are no items, a plant is repeated, a quantity is not greater
-            than 0, or the order date is invalid
-        :raises InsufficientStockError: If there is not enough stock for an item
+        :param items: A list of (plant, quantity) pairs, at least one, with no
+            plant repeated
+        :param order_date: Optional order date in DD-MM-YYYY format, defaults
+            to today
+        :raises ValueError: If there are no items, a plant is repeated, a
+            quantity is not greater than 0, or the order date is invalid
+        :raises InsufficientStockError: If there is not enough stock for an
+            item
         """
 
-        # Customer type is already in the method signature. NurserySystem still confirms
-        # the customer and plants are registered, and that this customer may place an order.
+        # Customer type is already in the method signature. NurserySystem still
+        # confirms the customer and plants are registered, and that this
+        # customer may place an order.
         if not items:
             raise ValueError("An order must contain at least one item")
 
-        # Every line is checked before any OrderItem is created, so a later line
-        # failing cannot leave an earlier line's stock already reduced.
+        # Every line is checked before any OrderItem is created, so a later
+        # line failing cannot leave an earlier line's stock already reduced.
         seen_plant_ids = []
         for plant, quantity in items:
             OrderItem.validate(plant, quantity)
@@ -43,11 +55,13 @@ class Order:
 
         # UUID keeps order IDs unique without a running counter.
         self.__order_id = uuid.uuid4()
-        # Date defaults to today if none is supplied, then is validated as a real calendar date.
+        # Date defaults to today if none is supplied, then is validated as a
+        # real calendar date.
         if order_date is None:
             order_date = date.today().strftime("%d-%m-%Y")
         self.__order_date = self.__validate_order_date(order_date)
-        # New orders always start as pending. Status is not settable directly after this.
+        # New orders always start as pending. Status is not settable directly
+        # after this.
         self.__order_status: OrderStatus = "pending"
         self.__customer = customer
         self.__items = []
@@ -57,17 +71,19 @@ class Order:
         items_subtotal = 0.0
         for item in self.__items:
             items_subtotal += item.item_cost
-        # Item bulk discounts are already in each line. The customer discount comes
-        # off the order as a whole, using whichever rate the customer subclass supplies.
+        # Item bulk discounts are already in each line. The customer discount
+        # comes off the order as a whole, using whichever rate the customer
+        # subclass supplies.
         self.__order_total = customer.apply_discount(items_subtotal)
         self.__amount_paid = 0.0
         customer.add_to_balance(self.__order_total)
 
     # ---------- Getters and Setters ----------
-    # Status has no setter because not every transition is legal (e.g. collected cannot
-    # be cancelled, and cancelling also has to restore stock and the customer balance).
-    # collect_order() and cancel_order() are the only way to change it. Order date does
-    # have a setter so staff can record or correct a date rather than always using today.
+    # Status has no setter because not every transition is legal (e.g.
+    # collected cannot be cancelled, and cancelling also has to restore stock
+    # and the customer balance). collect_order() and cancel_order() are the
+    # only way to change it. Order date does have a setter so staff can record
+    # or correct a date rather than always using today.
 
     @property
     def order_id(self) -> uuid.UUID:
@@ -85,7 +101,8 @@ class Order:
         Update the order date
 
         :param value: New date in DD-MM-YYYY format
-        :raises ValueError: If the date is not a valid calendar date in DD-MM-YYYY format
+        :raises ValueError: If the date is not a valid calendar date in
+            DD-MM-YYYY format
         """
         self.__order_date = self.__validate_order_date(value)
 
@@ -102,12 +119,15 @@ class Order:
     @property
     def items(self) -> list[OrderItem]:
         """Get the items on the order"""
-        # A copy is returned so callers cannot add or remove items on a placed order.
+        # A copy is returned so callers cannot add or remove items on a placed
+        # order.
         return self.__items.copy()
 
     @property
     def order_total(self) -> float:
-        """Get the total price of the order after item and customer discounts"""
+        """
+        Get the total price of the order after item and customer discounts
+        """
         return self.__order_total
 
     @property
@@ -118,7 +138,8 @@ class Order:
     @property
     def remaining_balance(self) -> float:
         """Get how much is still owed on this order"""
-        # A cancelled order has already had its total taken back off the customer.
+        # A cancelled order has already had its total taken back off the
+        # customer.
         if self.__order_status == "cancelled":
             return 0.0
         return round(self.__order_total - self.__amount_paid, 2)
@@ -127,33 +148,42 @@ class Order:
 
     def __validate_order_date(self, order_date: str) -> str:
         """
-        Validate that the order date is a real calendar date in DD-MM-YYYY format
+        Validate that the order date is a real calendar date in DD-MM-YYYY
+        format
 
         :param order_date: Date string to validate
         :return: The validated date string
-        :raises ValueError: If the date is not a valid calendar date in DD-MM-YYYY format
+        :raises ValueError: If the date is not a valid calendar date in
+            DD-MM-YYYY format
         """
-        # strptime is used so the format and the calendar date are both checked.
-        # That rejects values like 32-13-2026, not just strings that look the wrong shape.
+        # strptime is used so the format and the calendar date are both
+        # checked. That rejects values like 32-13-2026, not just strings that
+        # look the wrong shape.
         if not isinstance(order_date, str):
-            raise ValueError("Order date must be a valid date in DD-MM-YYYY format")
+            raise ValueError(
+                "Order date must be a valid date in DD-MM-YYYY format")
         try:
             datetime.strptime(order_date, "%d-%m-%Y")
         except ValueError:
-            raise ValueError("Order date must be a valid date in DD-MM-YYYY format")
+            raise ValueError(
+                "Order date must be a valid date in DD-MM-YYYY format")
         return order_date
 
     def record_payment(self, amount: float) -> None:
         """
-        Record an amount paid toward this order and take it off the customer balance
+        Record an amount paid toward this order and take it off the customer
+        balance
 
-        :param amount: Amount to apply to this order, must be greater than 0 and not more than remaining
-        :raises ValueError: If amount is not greater than 0, or is more than what is still owed
+        :param amount: Amount to apply to this order, must be greater than 0
+            and not more than remaining
+        :raises ValueError: If amount is not greater than 0, or is more than
+            what is still owed
         """
         if amount <= 0:
             raise ValueError("Payment amount must be greater than 0")
         if amount > self.remaining_balance:
-            raise ValueError("Payment cannot be more than what is still owed on this order")
+            raise ValueError(
+                "Payment cannot be more than what is still owed on this order")
         self.__amount_paid = round(self.__amount_paid + amount, 2)
         self.__customer.reduce_balance(amount)
 
@@ -161,34 +191,44 @@ class Order:
         """
         Update order status to collected
 
-        :raises OrderCannotBeCollectedError: If the order has already been collected or cancelled,
+        :raises OrderCannotBeCollectedError: If the order has already been
+            collected or cancelled,
             or the customer is not allowed to collect it yet
         """
         if self.__order_status == "collected":
-            raise OrderCannotBeCollectedError("Order has already been collected")
+            raise OrderCannotBeCollectedError(
+                "Order has already been collected")
         if self.__order_status == "cancelled":
-            raise OrderCannotBeCollectedError("Unable to collect cancelled order")
-        # Pending is the only status that can move to collected. Whether this customer
-        # may collect while still owing is answered by the customer subclass.
+            raise OrderCannotBeCollectedError(
+                "Unable to collect cancelled order")
+        # Pending is the only status that can move to collected. Whether this
+        # customer may collect while still owing is answered by the customer
+        # subclass.
         if not self.__customer.can_collect_order(self.remaining_balance):
-            raise OrderCannotBeCollectedError("Order must be paid in full before it can be collected")
+            raise OrderCannotBeCollectedError(
+                "Order must be paid in full before it can be collected")
         self.__order_status = "collected"
 
     def cancel_order(self) -> None:
         """
-        Update order status to cancelled, restore stock, and take the total off the customer balance
+        Update order status to cancelled, restore stock, and take the total off
+        the customer balance
 
-        :raises OrderCannotBeCancelledError: If the order has already been collected or cancelled,
+        :raises OrderCannotBeCancelledError: If the order has already been
+            collected or cancelled,
             or anything has been paid toward it
         """
         if self.__order_status == "collected":
-            raise OrderCannotBeCancelledError("Cannot cancel order that has already been collected")
+            raise OrderCannotBeCancelledError(
+                "Cannot cancel order that has already been collected")
         if self.__order_status == "cancelled":
-            raise OrderCannotBeCancelledError("Order has already been cancelled")
+            raise OrderCannotBeCancelledError(
+                "Order has already been cancelled")
         if self.__amount_paid > 0:
-            raise OrderCannotBeCancelledError("Cannot cancel an order that has already been paid toward")
-        # Stock is restored on every item, and the order total comes off what they owe,
-        # matching how placing the order added it.
+            raise OrderCannotBeCancelledError(
+                "Cannot cancel an order that has already been paid toward")
+        # Stock is restored on every item, and the order total comes off what
+        # they owe, matching how placing the order added it.
         for item in self.__items:
             item.restore_stock()
         self.__customer.reduce_balance(self.__order_total)
@@ -199,7 +239,8 @@ class Order:
         item_text = "; ".join(str(item) for item in self.__items)
         return (
             "Order ID: {}, Order Date: {}, Order Status: {}, Customer: {},"
-            " Items: [{}], Order Total: {}, Amount Paid: {}, Remaining Balance: {}"
+            " Items: [{}], Order Total: {}, Amount Paid: {}, "
+            "Remaining Balance: {}"
             .format(
                 self.__order_id, self.__order_date,
                 self.__order_status, self.__customer.cust_name,

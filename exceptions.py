@@ -18,7 +18,10 @@ class InsufficientStockError(Exception):
 class OrderNotAllowedError(Exception):
     """An error when a customer is not allowed to place a new order"""
 
-    def __init__(self, message: str = "Customer is not allowed to place a new order") -> None:
+    def __init__(
+        self,
+        message: str = "Customer is not allowed to place a new order",
+    ) -> None:
         """
         Initialise a new OrderNotAllowedError object
 

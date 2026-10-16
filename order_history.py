@@ -15,8 +15,9 @@ class OrderHistory:
     @property
     def order_list(self) -> list[Order]:
         """Get the list of orders"""
-        # A copy is returned so callers cannot change the internal list directly.
-        # New orders still have to go through add_order(), which checks for duplicate IDs.
+        # A copy is returned so callers cannot change the internal list
+        # directly. New orders still have to go through add_order(), which
+        # checks for duplicate IDs.
         return self.__order_list.copy()
 
     # ---------- Methods ----------
@@ -34,7 +35,8 @@ class OrderHistory:
 
         for existing_order in self.__order_list:
             if existing_order.order_id == order.order_id:
-                raise ValueError(f"Order with ID {order.order_id} is already in the list")
+                raise ValueError(
+                    f"Order with ID {order.order_id} is already in the list")
 
         self.__order_list.append(order)
 
@@ -47,7 +49,10 @@ class OrderHistory:
         """
         pending_count = 0
         for order in self.__order_list:
-            if order.customer.cust_id == customer.cust_id and order.order_status == "pending":
+            if (
+                order.customer.cust_id == customer.cust_id
+                and order.order_status == "pending"
+            ):
                 pending_count += 1
         return pending_count
 
@@ -59,15 +64,17 @@ class OrderHistory:
         :return: A list of Order objects belonging to that customer
         """
         matching_orders = []
-        # Match on customer ID rather than the Customer object itself, so history still
-        # works if the caller holds a different Python object with the same ID.
+        # Match on customer ID rather than the Customer object itself, so
+        # history still works if the caller holds a different Python object
+        # with the same ID.
         for order in self.__order_list:
             if order.customer.cust_id == customer.cust_id:
                 matching_orders.append(order)
         return matching_orders
 
-    # display_all_orders exists alongside the order_list getter so printing stays
-    # inside the history. The driver can call one method instead of looping itself.
+    # display_all_orders exists alongside the order_list getter so printing
+    # stays inside the history. The driver can call one method instead of
+    # looping itself.
     def display_all_orders(self) -> None:
         """Print a readable list of every order in the list"""
         if not self.__order_list:
