@@ -7,12 +7,12 @@ class InsufficientStockError(Exception):
 
         :param message: The message to show for this error
         """
-        self.message = message
-        super().__init__(self.message)
+        self.__message = message
+        super().__init__(self.__message)
 
     def __str__(self) -> str:
         """Returns a readable string of the error message"""
-        return self.message
+        return self.__message
 
 
 class OrderNotAllowedError(Exception):
@@ -24,12 +24,12 @@ class OrderNotAllowedError(Exception):
 
         :param message: The message to show for this error
         """
-        self.message = message
-        super().__init__(self.message)
+        self.__message = message
+        super().__init__(self.__message)
 
     def __str__(self) -> str:
         """Returns a readable string of the error message"""
-        return self.message
+        return self.__message
 
 
 class OrderCannotBeCollectedError(Exception):
@@ -41,12 +41,12 @@ class OrderCannotBeCollectedError(Exception):
 
         :param message: The message to show for this error
         """
-        self.message = message
-        super().__init__(self.message)
+        self.__message = message
+        super().__init__(self.__message)
 
     def __str__(self) -> str:
         """Returns a readable string of the error message"""
-        return self.message
+        return self.__message
 
 
 class OrderCannotBeCancelledError(Exception):
@@ -58,9 +58,9 @@ class OrderCannotBeCancelledError(Exception):
 
         :param message: The message to show for this error
         """
-        self.message = message
-        super().__init__(self.message)
+        self.__message = message
+        super().__init__(self.__message)
 
     def __str__(self) -> str:
         """Returns a readable string of the error message"""
-        return self.message
+        return self.__message

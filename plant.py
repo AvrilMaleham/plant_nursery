@@ -22,19 +22,13 @@ class Plant(ABC):
         """
 
         # Name and data types are assumed to be provided correctly by the caller.
-        # Validation here is for the business rules: price above 0, and starting
-        # stock above 0 (a new plant should not be created already sold out).
-        if plant_price <= 0:
-            raise ValueError("Plant price must be greater than 0")
-        if plant_stock <= 0:
-            raise ValueError("Plant stock must be greater than 0")
-
         # UUID is used so each plant batch gets a unique ID without a counter or database.
         # Two plants can share a name (different batches, different prices) and still be told apart.
         self.__plant_id = uuid.uuid4()
         self.__plant_name = plant_name
-        self.__plant_price = plant_price
-        self.__plant_stock = plant_stock
+        # Price and stock go through their setters, so creation uses the same checks as an update.
+        self.plant_price = plant_price
+        self.plant_stock = plant_stock
 
     # ---------- Getters and Setters ----------
     # Name identifies the plant and should not change once it is cataloged, so it
