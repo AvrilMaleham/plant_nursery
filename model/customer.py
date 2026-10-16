@@ -267,12 +267,17 @@ class Customer(Base):
         """
         raise NotImplementedError
 
-    def can_place_order(self, pending_order_count: int) -> bool:
+    def can_place_order(
+        self,
+        pending_order_count: int,
+        order_total: float = 0.0,
+    ) -> bool:
         """
         Return whether this customer is allowed to place a new order
 
         :param pending_order_count (int): How many pending orders this customer
             already has
+        :param order_total (float): The total of the order they want to place
         :return (bool): True if a new order is allowed, else False
         """
         raise NotImplementedError
@@ -311,16 +316,23 @@ class UniversityCustomer(Customer):
 
     __mapper_args__ = {"polymorphic_abstract": True}
 
-    def can_place_order(self, pending_order_count: int) -> bool:
+    def can_place_order(
+        self,
+        pending_order_count: int,
+        order_total: float = 0.0,
+    ) -> bool:
         """
-        University customers may place another order unless their amount owing
-        is already above $100
+        University customers cannot place an order that would take what they
+        owe over $100
 
         :param pending_order_count (int): Not used; balances can accumulate
             across orders
-        :return (bool): True if balance is $100 or less, else False
+        :param order_total (float): The total of the order they want to place
+        :return (bool): True if the balance plus this order is $100 or less
         """
-        return self.balance <= CREDIT_LIMIT
+        # The new order is included, so a balance of $90 cannot take a $20
+        # order. A balance of exactly $100 already blocks another order.
+        return round(self.balance + order_total, 2) <= CREDIT_LIMIT
 
     def can_collect_order(self, amount_owing_on_order: float) -> bool:
         """
@@ -412,12 +424,18 @@ class CommunityCustomer(Customer):
         """
         return COMMUNITY_DISCOUNT_RATE
 
-    def can_place_order(self, pending_order_count: int) -> bool:
+    def can_place_order(
+        self,
+        pending_order_count: int,
+        order_total: float = 0.0,
+    ) -> bool:
         """
         Community customers may only have one pending order at a time
 
         :param pending_order_count (int): How many pending orders this customer
             already has
+        :param order_total (float): Not used; the pending-order rule does not
+            depend on the amount
         :return (bool): True if they have no pending order, else False
         """
         return pending_order_count == 0

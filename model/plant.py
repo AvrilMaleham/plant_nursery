@@ -44,6 +44,10 @@ class Plant(Base):
             "seedlings_per_punnet IS NULL OR seedlings_per_punnet > 0",
             name="ck_plants_seedlings_positive",
         ),
+        CheckConstraint(
+            "image_filename <> ''",
+            name="ck_plants_image",
+        ),
     )
 
     # Single-table inheritance: every plant type is one row in plants.
@@ -69,6 +73,9 @@ class Plant(Base):
     )
     _seedlings_per_punnet: Mapped[Optional[int]] = mapped_column(
         "seedlings_per_punnet", Integer, nullable=True
+    )
+    _image_filename: Mapped[str] = mapped_column(
+        "image_filename", String(200), nullable=False
     )
 
     __mapper_args__ = {
@@ -103,6 +110,7 @@ class Plant(Base):
         plant_name: str,
         plant_price: float,
         plant_stock: int,
+        image_filename: str,
     ) -> None:
         """
         Initialise a new Plant object
@@ -112,15 +120,20 @@ class Plant(Base):
         :param plant_price (float): Price of the plant, must be greater than 0
         :param plant_stock (int): Stock on hand for this plant, must be greater
             than 0
-        :raises ValueError: If price is not greater than 0, or stock is not
-            greater than 0
+        :param image_filename (str): File name of the plant photo
+        :raises ValueError: If price is not greater than 0, stock is not
+            greater than 0, or the photo file name is missing
         """
+        if not image_filename:
+            raise ValueError("A plant photo is required")
+
         # Name and data types are assumed to be provided correctly by the
         # caller. UUID is used so each plant batch gets a unique ID without a
         # counter. Two plants can share a name (different batches, different
         # prices) and still be told apart.
         self._plant_id = uuid.uuid4()
         self._plant_name = plant_name
+        self._image_filename = image_filename
         # Price and stock go through their setters, so creation uses the same
         # checks as an update.
         self.plant_price = plant_price
@@ -150,6 +163,15 @@ class Plant(Base):
         :return (str): The plant name
         """
         return self._plant_name
+
+    @property
+    def image_filename(self) -> str:
+        """
+        Get the file name of the plant photo
+
+        :return (str): The file name of the plant photo
+        """
+        return self._image_filename
 
     @property
     def plant_price(self) -> float:
@@ -270,11 +292,12 @@ class Plant(Base):
         """
         return (
             "Plant ID: {}, Plant Name: {}, Plant Type: {}, Sale Unit: {},"
-            " Plant Price: {}, Plant Stock: {}"
+            " Plant Price: {}, Plant Stock: {}, Photo: {}"
             .format(
                 self.plant_id, self.plant_name,
                 self.plant_type(), self.sale_unit(),
                 self.plant_price, self.plant_stock,
+                self.image_filename,
             )
         )
 
@@ -347,6 +370,7 @@ class PotPlant(Plant):
         plant_name: str,
         plant_price: float,
         plant_stock: int,
+        image_filename: str,
         pot_size: PotSize,
     ) -> None:
         """
@@ -357,14 +381,17 @@ class PotPlant(Plant):
             than 0
         :param plant_stock (int): Number of pots on hand, must be greater than
             0
+        :param image_filename (str): File name of the plant photo
         :param pot_size (PotSize): Pot size, must be small, medium, or large
         :raises ValueError: If pot size is invalid, price is not greater than
-            0, or stock is not greater than 0
+            0, stock is not greater than 0, or the photo file name is missing
         """
         if pot_size not in get_args(PotSize):
             raise ValueError(f"Pot size must be one of {get_args(PotSize)}")
 
-        super().__init__(plant_name, plant_price, plant_stock)
+        super().__init__(
+            plant_name, plant_price, plant_stock, image_filename
+        )
         self._pot_size = pot_size
 
     @property
@@ -416,6 +443,7 @@ class VegetableSeedling(Plant):
         plant_name: str,
         plant_price: float,
         plant_stock: int,
+        image_filename: str,
         seedlings_per_punnet: int = 6,
     ) -> None:
         """
@@ -425,15 +453,19 @@ class VegetableSeedling(Plant):
         :param plant_price (float): Price per punnet, must be greater than 0
         :param plant_stock (int): Number of punnets on hand, must be greater
             than 0
+        :param image_filename (str): File name of the plant photo
         :param seedlings_per_punnet (int): Seedlings in each punnet, defaults
             to 6, must be greater than 0
         :raises ValueError: If seedlings per punnet is not greater than 0,
-            price is not greater than 0, or stock is not greater than 0
+            price is not greater than 0, stock is not greater than 0, or the
+            photo file name is missing
         """
         if seedlings_per_punnet <= 0:
             raise ValueError("Seedlings per punnet must be greater than 0")
 
-        super().__init__(plant_name, plant_price, plant_stock)
+        super().__init__(
+            plant_name, plant_price, plant_stock, image_filename
+        )
         self._seedlings_per_punnet = seedlings_per_punnet
 
     @property

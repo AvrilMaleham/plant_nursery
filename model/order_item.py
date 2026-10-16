@@ -112,6 +112,25 @@ class OrderItem(Base):
             raise InsufficientStockError(
                 f"Insufficient stock: only {plant.plant_stock} available")
 
+    @staticmethod
+    def line_cost(plant: Plant, quantity: int) -> float:
+        """
+        Calculate a line cost without reducing stock
+
+        :param plant (Plant): The plant being priced
+        :param quantity (int): Quantity in that plant's sale unit
+        :return (float): The item cost after any bulk discount
+        :raises ValueError: If quantity is not greater than 0
+        :raises InsufficientStockError: If there is not enough stock
+        """
+        OrderItem.validate(plant, quantity)
+        subtotal = plant.plant_price * quantity
+        # 10 or more of the same plant (same catalog entry, so the same pot
+        # size or the same seedling type) gets 10% off this line only.
+        if quantity >= BULK_DISCOUNT_QUANTITY:
+            return round(subtotal * (1 - BULK_DISCOUNT_RATE), 2)
+        return round(subtotal, 2)
+
     def __calculate_cost(self) -> float:
         """
         Calculate the line cost, applying a 10% discount for quantities of 10
@@ -120,12 +139,7 @@ class OrderItem(Base):
         :return (float): The item cost after any applicable discount, rounded
             to 2 decimal places
         """
-        subtotal = self.plant.plant_price * self.quantity
-        # 10 or more of the same plant (same catalog entry, so the same pot
-        # size or the same seedling type) gets 10% off this line only.
-        if self.quantity >= BULK_DISCOUNT_QUANTITY:
-            return round(subtotal * (1 - BULK_DISCOUNT_RATE), 2)
-        return round(subtotal, 2)
+        return OrderItem.line_cost(self.plant, self.quantity)
 
     def restore_stock(self) -> None:
         """Return this item's quantity to stock when the order is cancelled"""

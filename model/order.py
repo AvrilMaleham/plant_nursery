@@ -16,6 +16,10 @@ from .plant import Plant
 # itself is only changed through collect_order() and cancel_order().
 OrderStatus = Literal["pending", "collected", "cancelled"]
 
+# An order that is still pending this many days after it was placed needs
+# follow-up from the team and from the customer.
+UNCOLLECTED_AFTER_DAYS = 7
+
 
 class Order(Base):
     """
@@ -53,6 +57,12 @@ class Order(Base):
     )
     _amount_paid: Mapped[float] = mapped_column(
         "amount_paid", Numeric(10, 2), nullable=False, default=0
+    )
+    _collected_date: Mapped[Optional[str]] = mapped_column(
+        "collected_date", String(10), nullable=True
+    )
+    _cancelled_date: Mapped[Optional[str]] = mapped_column(
+        "cancelled_date", String(10), nullable=True
     )
     _customer: Mapped[Customer] = relationship()
     _items: Mapped[list[OrderItem]] = relationship(
@@ -219,6 +229,26 @@ class Order(Base):
             return 0.0
         return round(self.order_total - self.amount_paid, 2)
 
+    @property
+    def collected_date(self) -> Optional[str]:
+        """
+        Get the date the order was collected
+
+        :return (Optional[str]): The collection date, or None if it has not
+            been collected
+        """
+        return self._collected_date
+
+    @property
+    def cancelled_date(self) -> Optional[str]:
+        """
+        Get the date the order was cancelled
+
+        :return (Optional[str]): The cancellation date, or None if it has not
+            been cancelled
+        """
+        return self._cancelled_date
+
     # ---------- Methods ----------
 
     def __validate_order_date(self, order_date: str) -> str:
@@ -262,13 +292,31 @@ class Order(Base):
         self._amount_paid = round(self.amount_paid + amount, 2)
         self.customer.reduce_balance(amount)
 
-    def collect_order(self) -> None:
+    def is_uncollected_too_long(self, today: Optional[date] = None) -> bool:
+        """
+        Return whether this pending order was placed at least seven days ago
+
+        :param today (Optional[date]): The date to compare with, defaults to
+            today
+        :return (bool): True if it is still pending and at least seven days
+            have passed since it was placed
+        """
+        if self._order_status != "pending":
+            return False
+        placed = datetime.strptime(self.order_date, "%d-%m-%Y").date()
+        current = today or date.today()
+        return (current - placed).days >= UNCOLLECTED_AFTER_DAYS
+
+    def collect_order(self, collected_date: Optional[str] = None) -> None:
         """
         Update order status to collected
 
+        :param collected_date (Optional[str]): Collection date in DD-MM-YYYY
+            format, defaults to today
         :raises OrderCannotBeCollectedError: If the order has already been
             collected or cancelled, or the customer is not allowed to collect
             it yet
+        :raises ValueError: If the collection date is invalid
         """
         if self._order_status == "collected":
             raise OrderCannotBeCollectedError(
@@ -282,15 +330,21 @@ class Order(Base):
         if not self.customer.can_collect_order(self.remaining_balance):
             raise OrderCannotBeCollectedError(
                 "Order must be paid in full before it can be collected")
+        if collected_date is None:
+            collected_date = date.today().strftime("%d-%m-%Y")
+        self._collected_date = self.__validate_order_date(collected_date)
         self._order_status = "collected"
 
-    def cancel_order(self) -> None:
+    def cancel_order(self, cancelled_date: Optional[str] = None) -> None:
         """
         Update order status to cancelled, restore stock, and take the total off
         the customer balance
 
+        :param cancelled_date (Optional[str]): Cancellation date in DD-MM-YYYY
+            format, defaults to today
         :raises OrderCannotBeCancelledError: If the order has already been
             collected or cancelled, or anything has been paid toward it
+        :raises ValueError: If the cancellation date is invalid
         """
         if self._order_status == "collected":
             raise OrderCannotBeCancelledError(
@@ -306,6 +360,9 @@ class Order(Base):
         for item in self._items:
             item.restore_stock()
         self.customer.reduce_balance(self.order_total)
+        if cancelled_date is None:
+            cancelled_date = date.today().strftime("%d-%m-%Y")
+        self._cancelled_date = self.__validate_order_date(cancelled_date)
         self._order_status = "cancelled"
 
     def __str__(self) -> str:
@@ -315,7 +372,7 @@ class Order(Base):
         :return (str): A readable string of the order details
         """
         item_text = "; ".join(str(item) for item in self._items)
-        return (
+        text = (
             "Order ID: {}, Order Date: {}, Order Status: {}, Customer: {},"
             " Items: [{}], Order Total: {}, Amount Paid: {}, "
             "Remaining Balance: {}"
@@ -326,3 +383,6 @@ class Order(Base):
                 self.amount_paid, self.remaining_balance,
             )
         )
+        if self.is_uncollected_too_long():
+            return text + ", Follow-up: uncollected for 7 days or more"
+        return text

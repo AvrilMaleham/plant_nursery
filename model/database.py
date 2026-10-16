@@ -63,6 +63,7 @@ def init_db() -> None:
     import model.order_item  # noqa: F401
     import model.payment  # noqa: F401
     import model.plant  # noqa: F401
+    import model.user  # noqa: F401
 
     ensure_database()
     Base.metadata.create_all(engine)

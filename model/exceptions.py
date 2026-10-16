@@ -64,6 +64,54 @@ class OrderCannotBeCollectedError(Exception):
         return self.__message
 
 
+class LoginFailedError(Exception):
+    """An error when a username and password do not match an account"""
+
+    def __init__(
+        self,
+        message: str = "Username or password is incorrect",
+    ) -> None:
+        """
+        Initialise a new LoginFailedError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message
+
+
+class NotAuthorisedError(Exception):
+    """An error when the logged-in person is not allowed to do this"""
+
+    def __init__(
+        self,
+        message: str = "You are not allowed to do that",
+    ) -> None:
+        """
+        Initialise a new NotAuthorisedError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message
+
+
 class OrderCannotBeCancelledError(Exception):
     """An error when an order cannot be cancelled"""
 

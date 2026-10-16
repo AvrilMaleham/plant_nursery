@@ -20,4 +20,7 @@ Joined tables would keep pot size and expiry date out of the other rows, but
 trees, shrubs, perennials, staff, and students would each be a table of ids.
 Concrete tables would copy the shared columns into every table, and an
 order's plant would be a union across four tables.
+
+User is not part of those hierarchies. A login is either the shared team
+account or one customer, so it is its own table with a role column.
 """
