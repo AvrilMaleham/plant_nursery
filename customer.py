@@ -179,7 +179,40 @@ class Customer(ABC):
         )
 
 
-class StaffCustomer(Customer):
+class UniversityCustomer(Customer):
+    """An abstract subclass of Customer for university staff and students, who share ordering rules"""
+
+    def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
+        """
+        Initialise a new UniversityCustomer object
+
+        :param cust_name: Name of the customer
+        :param cust_email: Contact email address of the customer
+        :param cust_phone: Contact phone number of the customer
+        :raises ValueError: If there is not at least one of cust_email or cust_phone
+        """
+        super().__init__(cust_name, cust_email, cust_phone)
+
+    def can_place_order(self, pending_order_count: int) -> bool:
+        """
+        University customers may place another order unless their amount owing is already above $100
+
+        :param pending_order_count: Not used; balances can accumulate across orders
+        :return: True if balance is $100 or less, else False
+        """
+        return self.balance <= 100
+
+    def can_collect_order(self, amount_owing_on_order: float) -> bool:
+        """
+        University customers may collect an order while still owing money
+
+        :param amount_owing_on_order: Not used for university customers
+        :return: True
+        """
+        return True
+
+
+class StaffCustomer(UniversityCustomer):
     """Represents a subclass of customer called StaffCustomer, with 1% off the order total"""
 
     def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
@@ -201,26 +234,8 @@ class StaffCustomer(Customer):
         """Return this customer's discount rate as a decimal"""
         return 0.01
 
-    def can_place_order(self, pending_order_count: int) -> bool:
-        """
-        Staff may place another order unless their amount owing is already above $100
 
-        :param pending_order_count: Not used for staff; balances can accumulate across orders
-        :return: True if balance is $100 or less, else False
-        """
-        return self.balance <= 100
-
-    def can_collect_order(self, amount_owing_on_order: float) -> bool:
-        """
-        Staff may collect an order while still owing money
-
-        :param amount_owing_on_order: Not used for staff
-        :return: True
-        """
-        return True
-
-
-class StudentCustomer(Customer):
+class StudentCustomer(UniversityCustomer):
     """Represents a subclass of customer called StudentCustomer, with 5% off the order total"""
 
     def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
@@ -241,24 +256,6 @@ class StudentCustomer(Customer):
     def discount_rate(self) -> float:
         """Return this customer's discount rate as a decimal"""
         return 0.05
-
-    def can_place_order(self, pending_order_count: int) -> bool:
-        """
-        Students may place another order unless their amount owing is already above $100
-
-        :param pending_order_count: Not used for students; balances can accumulate across orders
-        :return: True if balance is $100 or less, else False
-        """
-        return self.balance <= 100
-
-    def can_collect_order(self, amount_owing_on_order: float) -> bool:
-        """
-        Students may collect an order while still owing money
-
-        :param amount_owing_on_order: Not used for students
-        :return: True
-        """
-        return True
 
 
 class CommunityCustomer(Customer):

@@ -153,7 +153,26 @@ class Plant(ABC):
         )
 
 
-class TreeAndShrub(Plant):
+class IndividualPlant(Plant):
+    """An abstract subclass of Plant for types priced and stocked per plant"""
+
+    def __init__(self, plant_name: str, plant_price: float, plant_stock: int) -> None:
+        """
+        Initialise a new IndividualPlant object
+
+        :param plant_name: Name of the plant
+        :param plant_price: Price per plant, must be greater than 0
+        :param plant_stock: Number of plants on hand, must be greater than 0
+        :raises ValueError: If price is not greater than 0, or stock is not greater than 0
+        """
+        super().__init__(plant_name, plant_price, plant_stock)
+
+    def sale_unit(self) -> str:
+        """Return the unit this plant is sold and stocked in"""
+        return "plant"
+
+
+class TreeAndShrub(IndividualPlant):
     """Represents a subclass of plant called TreeAndShrub, priced and stocked per plant"""
 
     def __init__(self, plant_name: str, plant_price: float, plant_stock: int) -> None:
@@ -171,12 +190,8 @@ class TreeAndShrub(Plant):
         """Return the type of plant"""
         return "trees and shrubs"
 
-    def sale_unit(self) -> str:
-        """Return the unit this plant is sold and stocked in"""
-        return "plant"
 
-
-class Perennial(Plant):
+class Perennial(IndividualPlant):
     """Represents a subclass of plant called Perennial, priced and stocked per plant"""
 
     def __init__(self, plant_name: str, plant_price: float, plant_stock: int) -> None:
@@ -193,10 +208,6 @@ class Perennial(Plant):
     def plant_type(self) -> str:
         """Return the type of plant"""
         return "perennials"
-
-    def sale_unit(self) -> str:
-        """Return the unit this plant is sold and stocked in"""
-        return "plant"
 
 
 class PotPlant(Plant):

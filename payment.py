@@ -9,31 +9,36 @@ from order import Order
 class Payment(ABC):
     """An abstract class representing a payment made by a customer toward a specific order"""
 
-    def __init__(self, customer: Customer, order: Order, amount: float, payment_date: Optional[str] = None) -> None:
+    def __init__(self, customer: Customer, order: Order, amount: float, card_number: str, payment_date: Optional[str] = None) -> None:
         """
         Initialise a new Payment object
 
         :param customer: The customer making the payment
         :param order: The order this payment is toward
         :param amount: Amount applied to the order, must be greater than 0
+        :param card_number: Card number for this payment
         :param payment_date: Optional payment date in DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, or the payment date is invalid
+        :raises ValueError: If amount is not greater than 0, card number is missing, or the payment date is invalid
         """
         if amount <= 0:
             raise ValueError("Payment amount must be greater than 0")
+        # Both credit and debit payments record a card number, so the check lives here.
+        if not card_number:
+            raise ValueError("Card number is required")
 
         # UUID keeps payment IDs unique without a running counter.
         self.__payment_id = uuid.uuid4()
         self.__customer = customer
         self.__order = order
         self.__amount = round(amount, 2)
+        self.__card_number = card_number
         if payment_date is None:
             payment_date = date.today().strftime("%d-%m-%Y")
         self.__payment_date = self.__validate_payment_date(payment_date)
 
     # ---------- Getters and Setters ----------
-    # A recorded payment is a snapshot. ID, customer, order, amount, and date
-    # are not changed after creation.
+    # A recorded payment is a snapshot. ID, customer, order, amount, card number,
+    # and date are not changed after creation.
 
     @property
     def payment_id(self) -> uuid.UUID:
@@ -59,6 +64,11 @@ class Payment(ABC):
     def payment_date(self) -> str:
         """Get the date of the payment"""
         return self.__payment_date
+
+    @property
+    def card_number(self) -> str:
+        """Get the card number"""
+        return self.__card_number
 
     # ---------- Methods ----------
 
@@ -126,19 +136,11 @@ class CreditCardPayment(Payment):
         :raises ValueError: If amount is not greater than 0, card number or expiry is missing,
             or the payment date is invalid
         """
-        if not card_number:
-            raise ValueError("Card number is required")
         if not expiry_date:
             raise ValueError("Expiry date is required")
 
-        super().__init__(customer, order, amount, payment_date)
-        self.__card_number = card_number
+        super().__init__(customer, order, amount, card_number, payment_date)
         self.__expiry_date = expiry_date
-
-    @property
-    def card_number(self) -> str:
-        """Get the credit card number"""
-        return self.__card_number
 
     @property
     def expiry_date(self) -> str:
@@ -156,7 +158,7 @@ class CreditCardPayment(Payment):
     def __str__(self) -> str:
         """Returns a readable string of the credit card payment details"""
         return "{}, Card Number: {}, Expiry Date: {}".format(
-            super().__str__(), self.__card_number, self.__expiry_date
+            super().__str__(), self.card_number, self.__expiry_date
         )
 
 
@@ -176,19 +178,11 @@ class DebitCardPayment(Payment):
         :raises ValueError: If amount is not greater than 0, card number or bank name is missing,
             or the payment date is invalid
         """
-        if not card_number:
-            raise ValueError("Card number is required")
         if not bank_name:
             raise ValueError("Bank name is required")
 
-        super().__init__(customer, order, amount, payment_date)
-        self.__card_number = card_number
+        super().__init__(customer, order, amount, card_number, payment_date)
         self.__bank_name = bank_name
-
-    @property
-    def card_number(self) -> str:
-        """Get the debit card number"""
-        return self.__card_number
 
     @property
     def bank_name(self) -> str:
@@ -206,5 +200,5 @@ class DebitCardPayment(Payment):
     def __str__(self) -> str:
         """Returns a readable string of the debit card payment details"""
         return "{}, Card Number: {}, Bank: {}".format(
-            super().__str__(), self.__card_number, self.__bank_name
+            super().__str__(), self.card_number, self.__bank_name
         )
