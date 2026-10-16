@@ -182,17 +182,6 @@ class Customer(ABC):
 class UniversityCustomer(Customer):
     """An abstract subclass of Customer for university staff and students, who share ordering rules"""
 
-    def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
-        """
-        Initialise a new UniversityCustomer object
-
-        :param cust_name: Name of the customer
-        :param cust_email: Contact email address of the customer
-        :param cust_phone: Contact phone number of the customer
-        :raises ValueError: If there is not at least one of cust_email or cust_phone
-        """
-        super().__init__(cust_name, cust_email, cust_phone)
-
     def can_place_order(self, pending_order_count: int) -> bool:
         """
         University customers may place another order unless their amount owing is already above $100
@@ -215,17 +204,6 @@ class UniversityCustomer(Customer):
 class StaffCustomer(UniversityCustomer):
     """Represents a subclass of customer called StaffCustomer, with 1% off the order total"""
 
-    def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
-        """
-        Initialise a new StaffCustomer object
-
-        :param cust_name: Name of the customer
-        :param cust_email: Contact email address of the customer
-        :param cust_phone: Contact phone number of the customer
-        :raises ValueError: If there is not at least one of cust_email or cust_phone
-        """
-        super().__init__(cust_name, cust_email, cust_phone)
-
     def customer_type(self) -> str:
         """Return the type of customer"""
         return "staff"
@@ -238,17 +216,6 @@ class StaffCustomer(UniversityCustomer):
 class StudentCustomer(UniversityCustomer):
     """Represents a subclass of customer called StudentCustomer, with 5% off the order total"""
 
-    def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
-        """
-        Initialise a new StudentCustomer object
-
-        :param cust_name: Name of the customer
-        :param cust_email: Contact email address of the customer
-        :param cust_phone: Contact phone number of the customer
-        :raises ValueError: If there is not at least one of cust_email or cust_phone
-        """
-        super().__init__(cust_name, cust_email, cust_phone)
-
     def customer_type(self) -> str:
         """Return the type of customer"""
         return "student"
@@ -260,17 +227,6 @@ class StudentCustomer(UniversityCustomer):
 
 class CommunityCustomer(Customer):
     """Represents a subclass of customer called CommunityCustomer, with no discount"""
-
-    def __init__(self, cust_name: str, cust_email: str = "", cust_phone: str = "") -> None:
-        """
-        Initialise a new CommunityCustomer object
-
-        :param cust_name: Name of the customer
-        :param cust_email: Contact email address of the customer
-        :param cust_phone: Contact phone number of the customer
-        :raises ValueError: If there is not at least one of cust_email or cust_phone
-        """
-        super().__init__(cust_name, cust_email, cust_phone)
 
     def customer_type(self) -> str:
         """Return the type of customer"""
