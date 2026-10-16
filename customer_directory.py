@@ -1,23 +1,24 @@
 from customer import Customer
 
+
 class CustomerDirectory:
     """A directory of the customers of the nursery"""
-    
+
     def __init__(self) -> None:
         """Initialise a new CustomerDirectory object"""
-        
+
         self.__customer_list = []
-        
+
     # ---------- Getters and Setters ----------
-        
+
     @property
     def customer_list(self) -> list[Customer]:
         """Get the list of customer"""
         # A copy is returned so callers cannot change the internal list directly.
         # New customers still have to go through add_customer(), which checks for duplicate IDs.
         return self.__customer_list.copy()
-        
-     # ---------- Methods ----------
+
+    # ---------- Methods ----------
 
     def add_customer(self, customer: Customer) -> None:
         """
@@ -29,14 +30,14 @@ class CustomerDirectory:
         """
         if not isinstance(customer, Customer):
             raise TypeError("Only Customer objects may be added to the list")
-        
+
         for existing_customer in self.__customer_list:
             # Duplicate check is by customer ID because two people can share a name.
             if existing_customer.cust_id == customer.cust_id:
                 raise ValueError(f"Customer with ID {customer.cust_id} is already in the list")
-            
+
         self.__customer_list.append(customer)
-    
+
     def get_customers_by_type(self, customer_type: str) -> list[Customer]:
         """
         Return customers of one type

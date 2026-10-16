@@ -1,24 +1,25 @@
 from order import Order
 from customer import Customer
 
+
 class OrderHistory:
     """Record of all orders placed at the nursery"""
-    
+
     def __init__(self) -> None:
         """Initialise a new OrderHistory object"""
-        
+
         self.__order_list = []
-        
+
     # ---------- Getters and Setters ----------
-        
+
     @property
     def order_list(self) -> list[Order]:
         """Get the list of orders"""
         # A copy is returned so callers cannot change the internal list directly.
         # New orders still have to go through add_order(), which checks for duplicate IDs.
         return self.__order_list.copy()
-        
-     # ---------- Methods ----------
+
+    # ---------- Methods ----------
 
     def add_order(self, order: Order) -> None:
         """
@@ -30,13 +31,13 @@ class OrderHistory:
         """
         if not isinstance(order, Order):
             raise TypeError("Only orders may be added to the list")
-        
+
         for existing_order in self.__order_list:
             if existing_order.order_id == order.order_id:
                 raise ValueError(f"Order with ID {order.order_id} is already in the list")
-            
+
         self.__order_list.append(order)
-    
+
     def get_pending_order_count(self, customer: Customer) -> int:
         """
         Count how many pending orders a customer currently has
@@ -64,15 +65,14 @@ class OrderHistory:
             if order.customer.cust_id == customer.cust_id:
                 matching_orders.append(order)
         return matching_orders
-    
+
     # display_all_orders exists alongside the order_list getter so printing stays
-    # inside the history. The driver can call one method instead of looping itself. 
+    # inside the history. The driver can call one method instead of looping itself.
     def display_all_orders(self) -> None:
         """Print a readable list of every order in the list"""
         if not self.__order_list:
             print("No orders yet")
             return
-        
+
         for order in self.__order_list:
             print(order)
-        
