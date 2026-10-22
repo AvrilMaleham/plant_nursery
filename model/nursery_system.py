@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .customer import Customer
@@ -163,6 +163,23 @@ class NurserySystem:
         """Log out the current user"""
         self.__current_user = None
 
+    def resume(self, user_id: uuid.UUID) -> bool:
+        """
+        Continue an existing login without asking for the password again.
+
+        A controller keeps the user id after login. The next request calls
+        this so later role checks still run as that person.
+
+        :param user_id (uuid.UUID): The id of the person who logged in
+        :return (bool): True if that login still exists
+        """
+        user = self.__session.get(User, user_id)
+        if user is None:
+            self.__current_user = None
+            return False
+        self.__current_user = user
+        return True
+
     def __find_user(self, username: str) -> Optional[User]:
         """
         Find a login by username
@@ -226,6 +243,34 @@ class NurserySystem:
             if existing.order_id == order.order_id:
                 return existing
         raise ValueError("Order is not in the system")
+
+    def __payments_in_time_order(self, order: Order) -> list[Payment]:
+        """
+        Return the payments on an order, earliest first.
+
+        Payments on the same date stay in the order they were recorded.
+
+        :param order (Order): The order the payments belong to
+        :return (list[Payment]): Payments from first to last
+        """
+        payments = self.__payment_history.get_order_payments(order)
+        recorded = {
+            payment_id: index
+            for index, payment_id in enumerate(
+                self.__session.scalars(
+                    select(Payment._payment_id)
+                    .where(Payment._order_id == order.order_id)
+                    .order_by(text("ctid"))
+                )
+            )
+        }
+        payments.sort(
+            key=lambda payment: (
+                self.__parse_date(payment.payment_date),
+                recorded.get(payment.payment_id, 0),
+            )
+        )
+        return payments
 
     def __parse_date(self, value: str) -> date:
         """
@@ -828,7 +873,7 @@ class NurserySystem:
         """
         stored = self.__require_known_order(order)
         self.__require_self_or_team(stored.customer)
-        return self.__payment_history.get_order_payments(stored)
+        return self.__payments_in_time_order(stored)
 
     def display_all_payments(self) -> None:
         """
@@ -888,7 +933,16 @@ class NurserySystem:
         :raises ValueError: If the payment is not in the system
         """
         stored = self.find_payment(payment.payment_id)
-        return Receipt(stored)
+        # Each receipt shows what was left after that payment, not the
+        # balance once later payments have also been recorded.
+        paid_so_far = 0.0
+        remaining = stored.order.order_total
+        for earlier in self.__payments_in_time_order(stored.order):
+            paid_so_far = round(paid_so_far + earlier.amount, 2)
+            remaining = round(stored.order.order_total - paid_so_far, 2)
+            if earlier.payment_id == stored.payment_id:
+                break
+        return Receipt(stored, remaining)
 
     # ---------- Report Methods ----------
 

@@ -4,10 +4,7 @@ Load a fresh set of sample plants, customers, orders, payments, and logins.
 Running this again clears those tables first, then loads the same sample.
 """
 
-import struct
-import zlib
 from datetime import date, timedelta
-from pathlib import Path
 
 from model.customer import CommunityCustomer, StaffCustomer, StudentCustomer
 from model.database import reset_database, session_scope
@@ -15,79 +12,32 @@ from model.nursery_system import NurserySystem
 from model.payment import CreditCardPayment, DebitCardPayment
 from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
 
-IMAGE_DIR = Path(__file__).resolve().parent / "view" / "static" / "images"
-
-
-def write_sample_image(filename: str, colour: tuple[int, int, int]) -> None:
-    """
-    Write a small solid-colour PNG for a sample plant.
-
-    :param filename (str): File name under view/static/images
-    :param colour (tuple[int, int, int]): Red, green, and blue, each 0 to 255
-    """
-    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    width = 80
-    height = 60
-
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        """
-        Build one PNG chunk.
-
-        :param tag (bytes): Four-byte chunk type
-        :param data (bytes): Chunk data
-        :return (bytes): Length, type, data, and checksum
-        """
-        return (
-            struct.pack(">I", len(data))
-            + tag
-            + data
-            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-        )
-
-    rows = b"".join(
-        b"\x00" + bytes(colour) * width for _ in range(height)
-    )
-    png = b"\x89PNG\r\n\x1a\n"
-    png += chunk(
-        b"IHDR",
-        struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0),
-    )
-    png += chunk(b"IDAT", zlib.compress(rows))
-    png += chunk(b"IEND", b"")
-    (IMAGE_DIR / filename).write_bytes(png)
-
 
 def main() -> None:
     """
     Replace the nursery tables with the sample data and print them.
     """
-    photos = {
-        "rose.png": (180, 40, 60),
-        "tomato.png": (200, 50, 30),
-        "orchid.png": (150, 80, 180),
-        "lavender.png": (140, 120, 200),
-        "fern.png": (40, 120, 60),
-    }
-    for filename, colour in photos.items():
-        write_sample_image(filename, colour)
-
     ten_days_ago = (date.today() - timedelta(days=10)).strftime("%d-%m-%Y")
     today = date.today().strftime("%d-%m-%Y")
 
     reset_database()
     with session_scope() as session:
         system = NurserySystem(session)
-        # The first account has to be the team. Sample passwords are the
-        # same as the usernames, except the shared team login.
-        system.add_user("team", "nursery", "team")
-        system.login("team", "nursery")
+        # The first account has to be the team.
+        system.add_user("teamUsername", "TeamPassword", "team")
+        system.login("teamUsername", "TeamPassword")
 
         rose = TreeAndShrub("Rose", 15.99, 25, "rose.png")
         tomato = VegetableSeedling("Tomato", 4.50, 50, "tomato.png")
         orchid = PotPlant("Orchid", 22.00, 8, "orchid.png", "medium")
         lavender = Perennial("Lavender", 12.75, 30, "lavender.png")
         fern = PotPlant("Fern", 8.00, 15, "fern.png", "small")
-        for plant in (rose, tomato, orchid, lavender, fern):
+        # Already sold out. The in-stock filter hides it, and an order for
+        # it is refused because there is no stock. Stock reaches 0 through
+        # reduce_stock, which is the only path that allows exactly zero.
+        cactus = PotPlant("Cactus", 6.00, 1, "cactus.png", "small")
+        cactus.reduce_stock(1)
+        for plant in (rose, tomato, orchid, lavender, fern, cactus):
             system.add_plant(plant)
 
         avril = StaffCustomer("Avril", cust_email="avril@email.com")
@@ -95,9 +45,9 @@ def main() -> None:
         sam = CommunityCustomer("Sam", cust_email="sam@email.com")
         for customer in (avril, jane, sam):
             system.add_customer(customer)
-        system.add_user("avril", "avril", "customer", avril)
-        system.add_user("jane", "jane", "customer", jane)
-        system.add_user("sam", "sam", "customer", sam)
+        system.add_user("avrilUsername", "AvrilPassword", "customer", avril)
+        system.add_user("janeUsername", "JanePassword", "customer", jane)
+        system.add_user("samUsername", "SamPassword", "customer", sam)
 
         # Still pending, and old enough to need a follow-up.
         system.place_order(avril, [(lavender, 1)], ten_days_ago)
@@ -106,13 +56,13 @@ def main() -> None:
 
         # Jane cancels her own unpaid order, then places the bulk order.
         system.logout()
-        system.login("jane", "jane")
+        system.login("janeUsername", "JanePassword")
         cancelled = system.place_order(jane, [(tomato, 1)])
         system.cancel_order(cancelled)
         system.place_order(jane, [(tomato, 12)])
 
         system.logout()
-        system.login("team", "nursery")
+        system.login("teamUsername", "TeamPassword")
         # Two different plants on one order. Community customers get no
         # discount. The order is paid with both card types, then collected.
         community_order = system.place_order(
@@ -133,11 +83,25 @@ def main() -> None:
         system.record_payment(credit)
         system.collect_order(community_order)
 
+        # Paid, so it no longer counts as Sam's one pending order. The next
+        # order stays pending: two payments, a balance left, and a community
+        # customer who cannot collect or cancel until it is paid off.
+        partial = system.place_order(sam, [(fern, 4)])
+        system.record_payment(
+            DebitCardPayment(
+                sam, partial, 12.00, "9999888877776666", "Westpac"
+            )
+        )
+        partial_credit = CreditCardPayment(
+            sam, partial, 10.00, "4444333322221111", "06-27"
+        )
+        system.record_payment(partial_credit)
+
         print("--- Logins ---")
-        print("team / nursery")
-        print("avril / avril")
-        print("jane / jane")
-        print("sam / sam")
+        print("teamUsername / TeamPassword")
+        print("avrilUsername / AvrilPassword")
+        print("janeUsername / JanePassword")
+        print("samUsername / SamPassword")
         print()
         print("--- All Plants ---")
         system.display_all_plants()
@@ -163,6 +127,9 @@ def main() -> None:
         print()
         print("--- Receipt ---")
         print(system.receipt_for(credit))
+        print()
+        print("--- Partly paid receipt ---")
+        print(system.receipt_for(partial_credit))
         print()
         print("--- Most ordered ---")
         for plant, quantity in system.most_ordered_plants():

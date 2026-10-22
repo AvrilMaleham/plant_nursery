@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Log in · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Log in</h1>
+  <p>The nursery team shares one login. Each customer has their own.</p>
+  <form method="post" action="{{ url_for('nursery.login') }}">
+    <label>Username
+      <input name="username" value="{{ username or '' }}" autocomplete="username" required>
+    </label>
+    <label>Password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+{% endblock %}

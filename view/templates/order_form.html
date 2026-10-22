@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Place an order · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Place an order</h1>
+  <form method="post">
+    {% if is_team %}
+      <label>Customer
+        <select name="customer_id" required>
+          <option value="">Choose a customer</option>
+          {% for customer in customers %}
+            <option value="{{ customer.cust_id }}" {% if form.get('customer_id', selected_customer_id) == customer.cust_id|string %}selected{% endif %}>
+              {{ customer.cust_name }} ({{ customer.customer_type() }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+    <table>
+      <thead>
+        <tr><th>Plant</th><th>Price</th><th>In stock</th><th>Quantity</th></tr>
+      </thead>
+      <tbody>
+        {% for plant in plants %}
+          {% set field = 'qty-' ~ plant.plant_id %}
+          {% set preset = '1' if selected_plant_id == plant.plant_id|string and not form.get(field) else '' %}
+          <tr {% if plant.plant_stock == 0 %}class="out-of-stock"{% endif %}>
+            <td>{{ plant.plant_name }} <span class="hint">{{ plant.plant_type() }}</span></td>
+            <td>${{ "%.2f"|format(plant.plant_price) }}</td>
+            <td>
+              {% if plant.plant_stock == 0 %}
+                Out of stock
+              {% else %}
+                {{ plant.plant_stock }} {{ plant.sale_unit() }}
+              {% endif %}
+            </td>
+            <td>
+              <input name="{{ field }}" value="{{ form.get(field, preset) }}" inputmode="numeric" aria-label="Quantity of {{ plant.plant_name }}" {% if plant.plant_stock == 0 %}disabled{% endif %}>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Place order</button>
+  </form>
+{% endblock %}

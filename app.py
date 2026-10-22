@@ -1,5 +1,6 @@
 """Flask entry point. Wires the model, controllers, and views together."""
 
+import os
 from pathlib import Path
 
 from flask import Flask
@@ -23,6 +24,8 @@ def create_app() -> Flask:
         template_folder=str(ROOT / "view" / "templates"),
         static_folder=str(ROOT / "view" / "static"),
     )
+    # The session cookie remembers who logged in on this computer.
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "lincoln-nursery-local")
     app.register_blueprint(nursery_bp)
     return app
 
@@ -30,4 +33,4 @@ def create_app() -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=int(os.environ.get("PORT", "5000")))

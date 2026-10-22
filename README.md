@@ -20,9 +20,9 @@ Create the database and load the sample. Use the same username and password as p
 DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python seed.py
 ```
 
-Replace `YOUR_PASSWORD` with your own password. Do not leave those words in the command. This creates a database named `plant_nursery` and fills it with sample plants, customers, orders, and payments.
+Replace `YOUR_PASSWORD` with your own password. Do not leave those words in the command. This creates a database named `plant_nursery` and fills it with sample plants, customers, orders, payments, and logins.
 
-In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, and `payments`.
+In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, `payments`, and `users`.
 
 Running the same command again clears those tables and loads the same sample.
 
@@ -32,7 +32,14 @@ Start the web application with the same connection:
 DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python app.py
 ```
 
-Open http://127.0.0.1:5000. The pages do not read the database yet. The sample data is in PostgreSQL.
+Open http://127.0.0.1:5000. These are the sample logins:
+
+| Who | Username | Password |
+| --- | --- | --- |
+| Nursery team | teamUsername | TeamPassword |
+| Avril, staff | avrilUsername | AvrilPassword |
+| Jane, student | janeUsername | JanePassword |
+| Sam, community | samUsername | SamPassword |
 
 ## Design Decisions
 
@@ -74,7 +81,7 @@ The 10% discount is per line, in `OrderItem.__calculate_cost()`, using `BULK_DIS
 
 ### Saving in PostgreSQL
 
-Plants, customers, orders, order items, and payments are stored in PostgreSQL. SQLAlchemy maps the classes onto those tables. `seed.py` creates the `plant_nursery` database if it is missing, creates the tables, and loads the sample. The connection is the `DATABASE_URL` environment variable. If that variable is not set, the app uses `postgresql+psycopg://127.0.0.1:5433/plant_nursery`, which has no password. A normal install is port 5432 and needs the password from the PostgreSQL installer.
+Plants, customers, orders, order items, payments, and users are stored in PostgreSQL on port 5432, which is the server pgAdmin opens. SQLAlchemy maps the classes onto those tables. `seed.py` creates the `plant_nursery` database if it is missing, creates the tables, and loads the sample. The connection is the `DATABASE_URL` environment variable, including the password from the PostgreSQL installer. The password is not stored in the project.
 
 ### Custom Exceptions in Their Own File
 

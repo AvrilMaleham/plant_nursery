@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Add a customer · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Add a customer</h1>
+  <form method="post">
+    <label>Name
+      <input name="cust_name" value="{{ form.get('cust_name', '') }}" required>
+    </label>
+    <label>Type
+      <select name="customer_type" required>
+        {% for customer_type in customer_types %}
+          <option value="{{ customer_type }}" {% if form.get('customer_type') == customer_type %}selected{% endif %}>{{ customer_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Email
+      <input name="cust_email" value="{{ form.get('cust_email', '') }}">
+    </label>
+    <label>Phone
+      <input name="cust_phone" value="{{ form.get('cust_phone', '') }}">
+    </label>
+    <p class="hint">At least one of email or phone is required.</p>
+    <label>Username
+      <input name="username" value="{{ form.get('username', '') }}" required>
+    </label>
+    <label>Password
+      <input name="password" type="password" required>
+    </label>
+    <button type="submit">Add customer</button>
+  </form>
+{% endblock %}

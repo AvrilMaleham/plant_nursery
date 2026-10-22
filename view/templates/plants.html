@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Plants · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Plants</h1>
+  {% if is_team %}
+    <p class="actions"><a class="button" href="{{ url_for('nursery.add_plant') }}">Add a plant</a></p>
+  {% endif %}
+  <form method="get" class="filters">
+    <label>Name
+      <input name="name" value="{{ filters.name }}" placeholder="Common name">
+    </label>
+    <label>Type
+      <select name="plant_type">
+        <option value="">Any type</option>
+        {% for plant_type in plant_types %}
+          <option value="{{ plant_type }}" {% if filters.plant_type == plant_type %}selected{% endif %}>{{ plant_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <fieldset>
+      <legend>Price</legend>
+      <label><input type="radio" name="price_band" value="" {% if not filters.price_band %}checked{% endif %}> Any</label>
+      <label><input type="radio" name="price_band" value="under-10" {% if filters.price_band == 'under-10' %}checked{% endif %}> Under $10</label>
+      <label><input type="radio" name="price_band" value="10-30" {% if filters.price_band == '10-30' %}checked{% endif %}> $10 to $30</label>
+    </fieldset>
+    <div class="filter-actions">
+      <label class="check">
+        <input type="checkbox" name="in_stock" {% if filters.in_stock %}checked{% endif %}>
+        In stock only
+      </label>
+      <span class="filter-buttons">
+        <a class="button quiet" href="{{ url_for('nursery.plants') }}">Reset</a>
+        <button type="submit">Search</button>
+      </span>
+    </div>
+  </form>
+
+  {% if plants %}
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Type</th><th>Price</th><th>Stock</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for plant in plants %}
+          <tr {% if plant.plant_stock == 0 %}class="out-of-stock"{% endif %}>
+            <td>{{ plant.plant_name }}</td>
+            <td>{{ plant.plant_type() }}</td>
+            <td>${{ "%.2f"|format(plant.plant_price) }}</td>
+            <td>
+              {% if plant.plant_stock == 0 %}
+                Out of stock
+              {% else %}
+                {{ plant.plant_stock }} {{ plant.sale_unit() }}
+              {% endif %}
+            </td>
+            <td><a href="{{ url_for('nursery.plant_detail', plant_id=plant.plant_id) }}">Details</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No plants match that search.</p>
+  {% endif %}
+{% endblock %}

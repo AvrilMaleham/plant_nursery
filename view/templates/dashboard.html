@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard · Plant Nursery{% endblock %}
+
+{% block content %}
+  {% if is_team %}
+    <h1>Nursery desk</h1>
+    <ul class="stats">
+      <li>{{ plant_count }} plants</li>
+      <li>{{ customer_count }} customers</li>
+      <li>{{ order_count }} orders</li>
+      <li>{{ payment_count }} payments</li>
+    </ul>
+  {% else %}
+    <h1>Hello, {{ customer.cust_name }}</h1>
+    <p>You currently owe ${{ "%.2f"|format(customer.balance) }}.</p>
+    <p>{{ customer.customer_type()|capitalize }} customer</p>
+  {% endif %}
+
+  {% if follow_up %}
+    <div class="alert follow-up" role="alert">
+      <p>
+        {% if is_team %}
+          These orders have not been collected within seven days. Follow them up.
+        {% else %}
+          You have an order that has not been collected within seven days. Follow it up with the nursery.
+        {% endif %}
+      </p>
+      <ul>
+        {% for order in follow_up %}
+          <li>
+            <a href="{{ url_for('nursery.order_detail', order_id=order.order_id) }}">
+              {{ order.order_date }} · {{ order.customer.cust_name }} · ${{ "%.2f"|format(order.order_total) }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <p class="actions">
+    <a class="button" href="{{ url_for('nursery.plants') }}">Find a plant</a>
+    <a class="button" href="{{ url_for('nursery.place_order') }}">Place an order</a>
+  </p>
+{% endblock %}

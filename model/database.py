@@ -1,9 +1,9 @@
 """
 Database connection for the nursery.
 
-The running PostgreSQL 16 server on port 5432 asks for a password. This
-project uses a local server on port 5433 instead, which does not. Set
-DATABASE_URL to point at a different server.
+PostgreSQL on port 5432 is the server pgAdmin opens. It asks for the
+password chosen when PostgreSQL was installed. Pass that password in
+DATABASE_URL. The password is not stored in this project.
 """
 
 import os
@@ -18,7 +18,7 @@ from .base import Base
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://127.0.0.1:5433/plant_nursery",
+    "postgresql+psycopg://postgres@127.0.0.1:5432/plant_nursery",
 )
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)

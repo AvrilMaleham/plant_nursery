@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Receipt · Plant Nursery{% endblock %}
+
+{% block content %}
+  <article class="paper">
+    <h1>Receipt</h1>
+    <dl>
+      <dt>Customer</dt><dd>{{ receipt.customer_name }}</dd>
+      <dt>Order</dt>
+      <dd><a href="{{ url_for('nursery.order_detail', order_id=receipt.order_id) }}">{{ receipt.order_id }}</a></dd>
+      <dt>Paid</dt><dd>${{ "%.2f"|format(receipt.amount) }}</dd>
+      <dt>How</dt><dd>{{ receipt.payment_type }}</dd>
+      <dt>Card surcharge</dt><dd>${{ "%.2f"|format(receipt.surcharge) }}</dd>
+      <dt>Charged</dt><dd>${{ "%.2f"|format(receipt.amount_charged) }}</dd>
+      <dt>Still to pay after this payment</dt><dd>${{ "%.2f"|format(receipt.remaining_on_order) }}</dd>
+    </dl>
+    <button type="button" class="no-print" onclick="window.print()">Print receipt</button>
+  </article>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Add a plant · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Add a plant</h1>
+  <form method="post" enctype="multipart/form-data">
+    <label>Name
+      <input name="plant_name" value="{{ form.get('plant_name', '') }}" required>
+    </label>
+    <label>Type
+      <select name="plant_type" required>
+        {% for plant_type in plant_types %}
+          <option value="{{ plant_type }}" {% if form.get('plant_type') == plant_type %}selected{% endif %}>{{ plant_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Price
+      <input name="price" value="{{ form.get('price', '') }}" required>
+    </label>
+    <label>Stock
+      <input name="stock" value="{{ form.get('stock', '') }}" required>
+    </label>
+    <label>Pot size
+      <select name="pot_size">
+        {% for size in ('small', 'medium', 'large') %}
+          <option value="{{ size }}" {% if form.get('pot_size', 'medium') == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <p class="hint">Pot size is used for pot plants.</p>
+    <label>Seedlings per punnet
+      <input name="seedlings" value="{{ form.get('seedlings', '') }}" placeholder="6">
+    </label>
+    <p class="hint">Used for vegetable seedlings. Leave blank for 6.</p>
+    <label>Photo
+      <input name="photo" type="file" accept="image/png,image/jpeg,image/gif,image/webp" required>
+    </label>
+    <button type="submit">Add plant</button>
+  </form>
+{% endblock %}

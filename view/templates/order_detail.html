@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Order · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Order</h1>
+  {% if needs_follow_up %}
+    <p class="alert follow-up" role="alert">Uncollected for 7 days or more. This order needs a follow-up.</p>
+  {% endif %}
+  <div class="actions no-print">
+    {% if order.order_status != "cancelled" %}
+      <form method="post" action="{{ url_for('nursery.cancel_order', order_id=order.order_id) }}" class="inline">
+        <button type="submit" class="danger">Cancel this order</button>
+      </form>
+    {% endif %}
+    {% if can_collect %}
+      <form method="post" action="{{ url_for('nursery.collect_order', order_id=order.order_id) }}" class="inline">
+        <button type="submit">Mark collected</button>
+      </form>
+    {% endif %}
+    <button type="button" onclick="window.print()">Print invoice</button>
+  </div>
+  <div class="no-print">
+    {% if awaiting_payment %}
+      <p class="hint">Pay the remaining ${{ "%.2f"|format(order.remaining_balance) }} before the nursery team can mark it collected.</p>
+    {% elif not is_team and order.order_status == "pending" %}
+      <p class="hint">The nursery team marks this order collected when it is picked up.</p>
+    {% endif %}
+  </div>
+
+  <article class="paper" id="invoice">
+    <h2>Invoice</h2>
+    <dl class="invoice-who">
+      <dt>Customer</dt><dd>{{ invoice.customer_name }}</dd>
+      <dt>Date</dt><dd>{{ order.order_date }}</dd>
+      <dt>Status</dt><dd>{{ order.order_status }}</dd>
+    </dl>
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Quantity</th><th>Cost per unit</th></tr>
+      </thead>
+      <tbody>
+        {% for line in invoice.lines %}
+          <tr>
+            <td>{{ line.plant_name }}</td>
+            <td>{{ line.quantity }} {{ line.sale_unit }}</td>
+            <td>${{ "%.2f"|format(line.unit_price) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <dl class="invoice-totals">
+      <dt>Total cost</dt><dd>${{ "%.2f"|format(invoice.cost) }}</dd>
+      {% if invoice.bulk_discount %}
+        <dt>Bulk discount</dt><dd>${{ "%.2f"|format(invoice.bulk_discount) }}</dd>
+      {% endif %}
+      {% if invoice.customer_discount %}
+        <dt>Customer discount</dt><dd>${{ "%.2f"|format(invoice.customer_discount) }}</dd>
+      {% endif %}
+      <dt>Payments</dt><dd>${{ "%.2f"|format(order.amount_paid) }}</dd>
+      <dt>Outstanding</dt><dd>${{ "%.2f"|format(order.remaining_balance) }}</dd>
+    </dl>
+  </article>
+
+  <h2 class="no-print">Payments</h2>
+  {% if payments %}
+    <ul class="receipts no-print">
+      {% for payment in payments %}
+        <li>
+          <a href="{{ url_for('nursery.receipt', payment_id=payment.payment_id) }}">
+            {{ payment.payment_date }} · {{ payment.payment_type() }} · ${{ "%.2f"|format(payment.amount) }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="no-print">Nothing has been paid toward this order.</p>
+  {% endif %}
+
+  {% if can_pay %}
+    <h2>{% if is_team %}Take a payment{% else %}Make a payment{% endif %}</h2>
+    <form method="post" action="{{ url_for('nursery.pay_order', order_id=order.order_id) }}" class="no-print">
+      <label>Amount
+        <input name="amount" value="{{ "%.2f"|format(order.remaining_balance) }}" required>
+      </label>
+      <label>Method
+        <select name="method" required>
+          <option value="debit card">Debit card</option>
+          <option value="credit card">Credit card</option>
+        </select>
+      </label>
+      <label>Card number
+        <input name="card_number" required>
+      </label>
+      <label>Expiry date
+        <input name="expiry_date" placeholder="MM-YY">
+      </label>
+      <label>Bank
+        <input name="bank_name">
+      </label>
+      <p class="hint">Credit cards use the expiry date. Debit cards use the bank. A credit card adds a surcharge on the receipt. The order is reduced by the amount paid.</p>
+      <button type="submit">{% if is_team %}Record payment{% else %}Pay{% endif %}</button>
+    </form>
+  {% endif %}
+{% endblock %}

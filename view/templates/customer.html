@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.cust_name }} · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>{{ customer.cust_name }}</h1>
+  <dl>
+    <dt>Type</dt><dd>{{ customer.customer_type() }}</dd>
+    <dt>Email</dt><dd>{{ customer.cust_email or "None" }}</dd>
+    <dt>Phone</dt><dd>{{ customer.cust_phone or "None" }}</dd>
+    <dt>Owes</dt><dd>${{ "%.2f"|format(customer.balance) }}</dd>
+  </dl>
+  {% if is_team %}
+    <p class="actions">
+      <a class="button" href="{{ url_for('nursery.place_order', customer_id=customer.cust_id) }}">Place an order for this customer</a>
+    </p>
+  {% endif %}
+
+  <h2>Orders</h2>
+  {% if orders %}
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Status</th><th>Total</th><th>Still to pay</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for order, needs_follow_up in orders %}
+          <tr {% if needs_follow_up %}class="follow-up"{% endif %}>
+            <td>{{ order.order_date }}</td>
+            <td>{{ order.order_status }}</td>
+            <td>${{ "%.2f"|format(order.order_total) }}</td>
+            <td>${{ "%.2f"|format(order.remaining_balance) }}</td>
+            <td>
+              <a href="{{ url_for('nursery.order_detail', order_id=order.order_id) }}">Open</a>
+              {% if needs_follow_up %}<span class="flag">Uncollected for 7 days or more</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No orders yet.</p>
+  {% endif %}
+
+  <h2>Payments</h2>
+  {% if payments %}
+    <ul>
+      {% for payment in payments %}
+        <li>
+          <a href="{{ url_for('nursery.receipt', payment_id=payment.payment_id) }}">
+            {{ payment.payment_date }} · {{ payment.payment_type() }} · ${{ "%.2f"|format(payment.amount) }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No payments yet.</p>
+  {% endif %}
+
+  <h2>Activity</h2>
+  {% if activity %}
+    <ol class="timeline">
+      {% for record in activity %}
+        <li><span>{{ record.happened_on }}</span> {{ record.detail }}</li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p>No activity yet.</p>
+  {% endif %}
+
+  {% if allow_remove %}
+    <form method="post" action="{{ url_for('nursery.remove_customer', customer_id=customer.cust_id) }}">
+      <button type="submit" class="danger">Remove this customer</button>
+    </form>
+  {% endif %}
+{% endblock %}

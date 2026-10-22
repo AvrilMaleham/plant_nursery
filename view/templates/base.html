@@ -2,15 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Plant Nursery{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <header>
-    <p>Lincoln University Nursery</p>
+    <a class="brand" href="{{ url_for('nursery.home') }}">Lincoln University Nursery</a>
+    {% if current_user %}
+      <p class="who">
+        {% if is_team %}Nursery team{% else %}{{ current_user.customer.cust_name }}{% endif %}
+      </p>
+      <nav>
+        <a href="{{ url_for('nursery.home') }}">Dashboard</a>
+        <a href="{{ url_for('nursery.plants') }}">Plants</a>
+        <a href="{{ url_for('nursery.orders') }}">Orders</a>
+        <a href="{{ url_for('nursery.payments') }}">Payments</a>
+        {% if is_team %}
+          <a href="{{ url_for('nursery.customers') }}">Customers</a>
+          <a href="{{ url_for('nursery.reports') }}">Reports</a>
+        {% else %}
+          <a href="{{ url_for('nursery.account') }}">My details</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('nursery.logout') }}">
+          <button type="submit">Log out</button>
+        </form>
+      </nav>
+    {% endif %}
   </header>
   <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p class="alert {{ category }}" role="alert">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+    {% if error %}
+      <p class="alert error" role="alert">{{ error }}</p>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
+  <script>
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted) {
+        window.location.reload();
+      }
+    });
+  </script>
 </body>
 </html>

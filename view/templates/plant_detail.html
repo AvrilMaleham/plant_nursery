@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plant.plant_name }} · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>{{ plant.plant_name }}</h1>
+  <img class="{% if plant.plant_stock == 0 %}out-of-stock{% endif %}" src="{{ url_for('static', filename='images/' ~ plant.image_filename) }}" alt="{{ plant.plant_name }}">
+  <dl>
+    <dt>Type</dt><dd>{{ plant.plant_type() }}</dd>
+    <dt>Price</dt><dd>${{ "%.2f"|format(plant.plant_price) }} per {{ plant.sale_unit() }}</dd>
+    <dt>Stock</dt>
+    <dd>
+      {% if plant.plant_stock == 0 %}
+        Out of stock
+      {% else %}
+        {{ plant.plant_stock }}
+      {% endif %}
+    </dd>
+    {% if plant.plant_type() == 'pot plants' %}
+      <dt>Pot size</dt><dd>{{ plant.pot_size }}</dd>
+    {% elif plant.plant_type() == 'vegetable seedlings' %}
+      <dt>Seedlings per punnet</dt><dd>{{ plant.seedlings_per_punnet }}</dd>
+    {% endif %}
+  </dl>
+  <p class="actions">
+    {% if plant.plant_stock == 0 %}
+      <button type="button" disabled>Order this plant</button>
+    {% else %}
+      <a class="button" href="{{ url_for('nursery.place_order', plant_id=plant.plant_id) }}">Order this plant</a>
+    {% endif %}
+  </p>
+
+  {% if is_team %}
+    <h2>Update price and stock</h2>
+    <form method="post" action="{{ url_for('nursery.update_plant', plant_id=plant.plant_id) }}">
+      <label>Price
+        <input name="price" value="{{ "%.2f"|format(plant.plant_price) }}" required>
+      </label>
+      <label>Stock
+        <input name="stock" value="{{ plant.plant_stock }}" required>
+      </label>
+      <button type="submit">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('nursery.remove_plant', plant_id=plant.plant_id) }}">
+      <button type="submit" class="danger">Remove this plant</button>
+    </form>
+  {% endif %}
+{% endblock %}

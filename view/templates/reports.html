@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Reports · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Reports</h1>
+
+  <section>
+    <h2>Most ordered</h2>
+    <table>
+      <thead><tr><th>Plant</th><th>Quantity</th></tr></thead>
+      <tbody>
+        {% for plant, quantity in most %}
+          <tr><td>{{ plant.plant_name }}</td><td>{{ quantity }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Least ordered</h2>
+    <table>
+      <thead><tr><th>Plant</th><th>Quantity</th></tr></thead>
+      <tbody>
+        {% for plant, quantity in least %}
+          <tr><td>{{ plant.plant_name }}</td><td>{{ quantity }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Revenue</h2>
+    <form method="get" class="filters">
+      <label>Period
+        <select name="period">
+          {% for choice in periods %}
+            <option value="{{ choice }}" {% if period == choice %}selected{% endif %}>{{ choice }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Date
+        <input name="on_date" value="{{ on_date }}" placeholder="DD-MM-YYYY" required>
+      </label>
+      <button type="submit">Show revenue</button>
+    </form>
+    {% if total is not none %}
+      <p class="total">Charged in that {{ period }}: ${{ "%.2f"|format(total) }}</p>
+    {% endif %}
+    <p class="hint">A week is that date plus the next six days. A month is the calendar month containing the date. Card surcharges are included.</p>
+  </section>
+
+  <section>
+    <h2>Plant order history</h2>
+    <form method="get" class="filters">
+      {% if period %}<input type="hidden" name="period" value="{{ period }}">{% endif %}
+      <input type="hidden" name="on_date" value="{{ on_date }}">
+      <label>Plant
+        <select name="plant_id">
+          <option value="">Choose a plant</option>
+          {% for plant in plants %}
+            <option value="{{ plant.plant_id }}" {% if chosen_plant and chosen_plant.plant_id == plant.plant_id %}selected{% endif %}>{{ plant.plant_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Show history</button>
+    </form>
+    {% if history is not none %}
+      {% if history %}
+        <table>
+          <thead><tr><th>Date</th><th>Customer</th><th>Status</th><th>Quantity</th></tr></thead>
+          <tbody>
+            {% for order in history %}
+              <tr>
+                <td>{{ order.order_date }}</td>
+                <td>{{ order.customer.cust_name }}</td>
+                <td>{{ order.order_status }}</td>
+                <td>
+                  {% for item in order.items if item.plant.plant_id == chosen_plant.plant_id %}
+                    {{ item.quantity }}
+                  {% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p>This plant has not been ordered.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Customer activity</h2>
+    <form method="get" class="filters">
+      <input type="hidden" name="on_date" value="{{ on_date }}">
+      <label>Customer
+        <select name="customer_id">
+          <option value="">Choose a customer</option>
+          {% for customer in customers %}
+            <option value="{{ customer.cust_id }}" {% if chosen_customer and chosen_customer.cust_id == customer.cust_id %}selected{% endif %}>{{ customer.cust_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Show activity</button>
+    </form>
+    {% if activity is not none %}
+      {% if activity %}
+        <ol class="timeline">
+          {% for record in activity %}
+            <li><span>{{ record.happened_on }}</span> {{ record.detail }}</li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p>No activity yet.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+{% endblock %}
