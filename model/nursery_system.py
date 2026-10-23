@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 from .customer import Customer
 from .documents import ActivityRecord, Invoice, Receipt
 from .exceptions import (
+    CustomerInUseError,
     InsufficientStockError,
     LoginFailedError,
     NotAuthorisedError,
     OrderNotAllowedError,
+    PlantInUseError,
 )
 from .order import Order
 from .order_item import OrderItem
@@ -401,15 +403,16 @@ class NurserySystem:
 
         :param plant (Plant): Plant to remove
         :raises NotAuthorisedError: If the user is not the nursery team
-        :raises ValueError: If the plant is not in the catalog, or it is on
-            an order
+        :raises PlantInUseError: If the plant is on any order, including a
+            cancelled one
+        :raises ValueError: If the plant is not in the catalog
         """
         self.__require_team()
         stored = self.find_plant(plant.plant_id)
         for order in self.__history.order_list:
             for item in order.items:
                 if item.plant.plant_id == stored.plant_id:
-                    raise ValueError(
+                    raise PlantInUseError(
                         "Cannot remove a plant that has been ordered"
                     )
         self.__session.delete(stored)
@@ -572,14 +575,15 @@ class NurserySystem:
 
         :param customer (Customer): Customer to remove
         :raises NotAuthorisedError: If the user is not the nursery team
-        :raises ValueError: If the customer is not registered, or they have
-            an order
+        :raises CustomerInUseError: If the customer has placed any order,
+            including a cancelled one
+        :raises ValueError: If the customer is not registered
         """
         self.__require_team()
         stored = self.find_customer(customer.cust_id)
         for order in self.__history.order_list:
             if order.customer.cust_id == stored.cust_id:
-                raise ValueError(
+                raise CustomerInUseError(
                     "Cannot remove a customer who has placed an order"
                 )
         linked_users = [
@@ -972,9 +976,12 @@ class NurserySystem:
         order still has a remaining balance.
 
         :param payment (Payment): The Payment to record
-        :raises ValueError: If the customer or order is not in the system, the
-            customer does not own the order, or the amount is more than what is
-            still owed
+        :raises OrderNotPayableError: If the order has been cancelled or is
+            already paid in full
+        :raises OverpaymentError: If the amount is more than what is still
+            owed
+        :raises ValueError: If the customer or order is not in the system, or
+            the customer does not own the order
         :raises NotAuthorisedError: If the user is not the team and not this
             customer
         """

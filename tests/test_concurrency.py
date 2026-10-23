@@ -18,7 +18,11 @@ from sqlalchemy.orm import Session
 
 from model.customer import CommunityCustomer
 from model.database import SessionLocal, session_scope
-from model.exceptions import InsufficientStockError, OrderNotAllowedError
+from model.exceptions import (
+    InsufficientStockError,
+    OrderNotAllowedError,
+    OverpaymentError,
+)
 from model.nursery_system import NurserySystem
 from model.order import Order
 from model.plant import Plant, TreeAndShrub
@@ -257,7 +261,7 @@ def test_two_payments_cannot_both_overpay_an_order(
         late.wait()
         # $15.99 is owed. The first $10.00 leaves $5.99, so a second $10.00
         # is more than what is still owed.
-        assert isinstance(late.error, ValueError)
+        assert isinstance(late.error, OverpaymentError)
         assert "still owed" in str(late.error)
     finally:
         second_session.rollback()

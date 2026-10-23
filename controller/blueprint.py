@@ -9,7 +9,9 @@ from flask import (
     Response,
     flash,
     g,
+    make_response,
     redirect,
+    render_template,
     request,
     session,
     url_for,
@@ -19,12 +21,16 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from model.database import SessionLocal, init_db
 from model.exceptions import (
+    CustomerInUseError,
     InsufficientStockError,
     LoginFailedError,
     NotAuthorisedError,
     OrderCannotBeCancelledError,
     OrderCannotBeCollectedError,
     OrderNotAllowedError,
+    OrderNotPayableError,
+    OverpaymentError,
+    PlantInUseError,
 )
 from model.nursery_system import NurserySystem
 from model.user import TEAM_ROLE
@@ -42,6 +48,10 @@ RULE_ERRORS = (
     OrderNotAllowedError,
     OrderCannotBeCollectedError,
     OrderCannotBeCancelledError,
+    OrderNotPayableError,
+    OverpaymentError,
+    PlantInUseError,
+    CustomerInUseError,
 )
 
 
@@ -166,11 +176,15 @@ def nav_context() -> dict[str, object]:
     :return (dict[str, object]): The current user and whether they are the team
     """
     current = getattr(g, "system", None)
-    user = current.current_user if current is not None else None
-    return {
-        "current_user": user,
-        "is_team": user is not None and user.role == TEAM_ROLE,
-    }
+    try:
+        user = current.current_user if current is not None else None
+        return {
+            "current_user": user,
+            "is_team": user is not None and user.role == TEAM_ROLE,
+        }
+    except SQLAlchemyError:
+        # An error page must still show when the database is what failed.
+        return {"current_user": None, "is_team": False}
 
 
 def signed_in(view: Callable) -> Callable:
@@ -195,6 +209,89 @@ def signed_in(view: Callable) -> Callable:
         return view(*args, **kwargs)
 
     return wrapper
+
+
+def error_page(
+    status: int, heading: str, explanation: str, **context: object
+) -> Response:
+    """
+    Show an error in the same layout as the rest of the site.
+
+    :param status (int): The HTTP status code to send
+    :param heading (str): What went wrong, in a few words
+    :param explanation (str): What the person can do about it
+    :param context (object): Extra values for the template
+    :return (Response): The error page with that status
+    """
+    page = render_template(
+        "error.html",
+        status=status,
+        heading=heading,
+        explanation=explanation,
+        **context,
+    )
+    return make_response(page, status)
+
+
+@nursery_bp.app_errorhandler(404)
+def page_not_found(error: Exception) -> Response:
+    """
+    Show a page for an address that does not exist.
+
+    :param error (Exception): The not found error from Flask
+    :return (Response): The error page
+    """
+    return error_page(
+        404,
+        "Page not found",
+        "There is no page at that address. The link may be out of date, "
+        "or the address may have been typed wrongly.",
+    )
+
+
+@nursery_bp.app_errorhandler(405)
+def method_not_allowed(error: Exception) -> Response:
+    """
+    Show a page for an address that cannot be used that way.
+
+    This happens when a link that is meant for a button, such as Log out, is
+    opened by typing the address in instead.
+
+    :param error (Exception): The method not allowed error from Flask
+    :return (Response): The error page
+    """
+    return error_page(
+        405,
+        "That cannot be done from here",
+        "This address is for a button on a page, not for opening directly. "
+        "Go back and use the button.",
+    )
+
+
+@nursery_bp.app_errorhandler(500)
+def unexpected_error(error: Exception) -> Response:
+    """
+    Show a page for a failure nothing else handled.
+
+    Flask has already logged the traceback by the time this runs. The person
+    sees no detail, because the detail could include paths, SQL, or other
+    people's data. Anything the request had changed is rolled back by
+    save_nursery(), which treats every status of 400 or more as a failure.
+
+    :param error (Exception): The internal server error from Flask
+    :return (Response): The error page
+    """
+    # The database may be what failed, so the page does not ask it who is
+    # signed in, which is what the navigation bar would otherwise do.
+    return error_page(
+        500,
+        "Something went wrong",
+        "The nursery system hit a problem it did not expect. Nothing from "
+        "that request was saved. Please try again, and tell the nursery team "
+        "if it keeps happening.",
+        current_user=None,
+        is_team=False,
+    )
 
 
 def explain(error: Exception) -> object:

@@ -12,9 +12,13 @@ import pytest
 from model.customer import CommunityCustomer, StaffCustomer, StudentCustomer
 from model.documents import Invoice, Receipt
 from model.exceptions import (
+    CustomerInUseError,
     InsufficientStockError,
     OrderCannotBeCancelledError,
     OrderCannotBeCollectedError,
+    OrderNotPayableError,
+    OverpaymentError,
+    PlantInUseError,
 )
 from model.order import Order
 from model.order_item import OrderItem
@@ -185,11 +189,65 @@ def test_paid_order_cannot_be_cancelled() -> None:
 
 
 def test_payment_cannot_exceed_what_is_still_owed() -> None:
-    """A payment larger than the remaining balance is refused."""
+    """A payment larger than the remaining balance is refused, and the
+    message says how much is owed."""
     order = Order(community_customer(), [(rose(), 1)])
-    with pytest.raises(ValueError, match="still owed"):
+    with pytest.raises(OverpaymentError, match=r"still owed.*\$15\.99"):
         order.record_payment(order.remaining_balance + 0.01)
     assert order.amount_paid == 0.00
+
+
+def test_a_payment_of_nothing_is_bad_input_not_an_overpayment() -> None:
+    """A zero payment is invalid data, so it stays a ValueError."""
+    order = Order(community_customer(), [(rose(), 1)])
+    with pytest.raises(ValueError, match="greater than 0"):
+        order.record_payment(0)
+    assert order.amount_paid == 0.00
+
+
+def test_a_cancelled_order_says_it_was_cancelled() -> None:
+    """Paying a cancelled order is refused for that reason, not as an
+    overpayment."""
+    order = Order(community_customer(), [(rose(), 1)])
+    order.cancel_order()
+    with pytest.raises(OrderNotPayableError, match="has been cancelled"):
+        order.record_payment(5.00)
+    assert order.amount_paid == 0.00
+
+
+def test_a_paid_order_says_it_is_paid_in_full() -> None:
+    """Paying an order that is settled is refused for that reason, even for
+    a small amount."""
+    order = Order(community_customer(), [(rose(), 1)])
+    order.record_payment(order.remaining_balance)
+    with pytest.raises(OrderNotPayableError, match="paid in full"):
+        order.record_payment(0.01)
+    assert order.amount_paid == 15.99
+
+
+@pytest.mark.parametrize(
+    ("error_type", "default"),
+    [
+        (PlantInUseError, "Cannot remove a plant that has been ordered"),
+        (
+            CustomerInUseError,
+            "Cannot remove a customer who has placed an order",
+        ),
+        (
+            OverpaymentError,
+            "Payment cannot be more than what is still owed on this order",
+        ),
+        (OrderNotPayableError, "Nothing can be paid toward this order"),
+    ],
+)
+def test_the_payment_and_removal_errors_carry_their_message(
+    error_type: type[Exception], default: str
+) -> None:
+    """Each has a default message, accepts its own, and is not a ValueError,
+    so a caller can tell it from bad input."""
+    assert str(error_type()) == default
+    assert str(error_type("A reason")) == "A reason"
+    assert not issubclass(error_type, ValueError)
 
 
 def test_credit_card_adds_a_surcharge_and_debit_does_not() -> None:

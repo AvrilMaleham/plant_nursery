@@ -131,3 +131,102 @@ class OrderCannotBeCancelledError(Exception):
         :return (str): A readable string of the error message
         """
         return self.__message
+
+
+class PlantInUseError(Exception):
+    """An error when a plant cannot be removed because it is on an order"""
+
+    def __init__(
+        self,
+        message: str = "Cannot remove a plant that has been ordered",
+    ) -> None:
+        """
+        Initialise a new PlantInUseError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message
+
+
+class CustomerInUseError(Exception):
+    """An error when a customer cannot be removed because they have ordered"""
+
+    def __init__(
+        self,
+        message: str = "Cannot remove a customer who has placed an order",
+    ) -> None:
+        """
+        Initialise a new CustomerInUseError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message
+
+
+class OverpaymentError(Exception):
+    """An error when a payment is more than what is still owed on an order"""
+
+    def __init__(
+        self,
+        message: str = (
+            "Payment cannot be more than what is still owed on this order"
+        ),
+    ) -> None:
+        """
+        Initialise a new OverpaymentError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message
+
+
+class OrderNotPayableError(Exception):
+    """An error when an order cannot take a payment, such as a cancelled or
+    fully paid order"""
+
+    def __init__(
+        self,
+        message: str = "Nothing can be paid toward this order",
+    ) -> None:
+        """
+        Initialise a new OrderNotPayableError object
+
+        :param message (str): The message to show for this error
+        """
+        self.__message = message
+        super().__init__(self.__message)
+
+    def __str__(self) -> str:
+        """
+        Returns a readable string of the error message
+
+        :return (str): A readable string of the error message
+        """
+        return self.__message

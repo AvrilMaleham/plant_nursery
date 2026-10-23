@@ -10,6 +10,8 @@ from .customer import Customer
 from .exceptions import (
     OrderCannotBeCancelledError,
     OrderCannotBeCollectedError,
+    OrderNotPayableError,
+    OverpaymentError,
 )
 from .order_item import OrderItem
 from .plant import Plant
@@ -297,14 +299,28 @@ class Order(Base):
 
         :param amount (float): Amount to apply to this order, must be greater
             than 0 and not more than remaining
-        :raises ValueError: If amount is not greater than 0, or is more than
-            what is still owed
+        :raises OrderNotPayableError: If the order has been cancelled, or is
+            already paid in full
+        :raises OverpaymentError: If the amount is more than what is still
+            owed
+        :raises ValueError: If amount is not greater than 0
         """
+        # Say why the order cannot be paid before comparing amounts. A
+        # cancelled or settled order owes nothing, and "more than what is
+        # still owed" would be true but would not explain that.
+        if self._order_status == "cancelled":
+            raise OrderNotPayableError(
+                "This order has been cancelled, so nothing can be paid "
+                "toward it")
+        if self.remaining_balance <= 0:
+            raise OrderNotPayableError(
+                "This order has already been paid in full")
         if amount <= 0:
             raise ValueError("Payment amount must be greater than 0")
         if amount > self.remaining_balance:
-            raise ValueError(
-                "Payment cannot be more than what is still owed on this order")
+            raise OverpaymentError(
+                "Payment cannot be more than what is still owed on this "
+                f"order (${self.remaining_balance:.2f})")
         self._amount_paid = round(self.amount_paid + amount, 2)
         self.customer.reduce_balance(amount)
 

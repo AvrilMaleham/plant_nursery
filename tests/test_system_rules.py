@@ -23,12 +23,16 @@ from model.customer import (
     StudentCustomer,
 )
 from model.exceptions import (
+    CustomerInUseError,
     InsufficientStockError,
     LoginFailedError,
     NotAuthorisedError,
     OrderCannotBeCancelledError,
     OrderCannotBeCollectedError,
     OrderNotAllowedError,
+    OrderNotPayableError,
+    OverpaymentError,
+    PlantInUseError,
 )
 from model.nursery_system import NurserySystem
 from model.order import Order
@@ -633,17 +637,46 @@ def test_payments_are_checked_against_the_order(
         "1111222233334444",
         "ANZ",
     )
-    with pytest.raises(ValueError, match="still owed"):
+    with pytest.raises(OverpaymentError, match="still owed"):
         nursery.record_payment(too_much)
     assert world.sam_order.amount_paid == 0.0
 
 
 def test_a_cancelled_order_cannot_be_paid(world: SimpleNamespace) -> None:
-    """Nothing is owed on a cancelled order, so nothing can be paid."""
+    """A cancelled order says it was cancelled. It does not say the payment
+    was too large."""
     nursery = world.system
     nursery.cancel_order(world.sam_order)
-    with pytest.raises(ValueError, match="still owed"):
+    with pytest.raises(OrderNotPayableError, match="has been cancelled"):
         pay(nursery, world.sam_order, 1.00, day())
+    assert world.sam_order.amount_paid == 0.0
+
+
+def test_a_fully_paid_order_cannot_be_paid_again(
+    world: SimpleNamespace,
+) -> None:
+    """Once the balance is nil the order says it is paid in full, and the
+    customer's balance is not reduced a second time."""
+    nursery = world.system
+    pay(nursery, world.sam_order, world.sam_order.remaining_balance, day())
+    owed_after_paying = world.sam.balance
+
+    with pytest.raises(OrderNotPayableError, match="paid in full"):
+        pay(nursery, world.sam_order, 1.00, day())
+    assert world.sam.balance == owed_after_paying
+
+
+def test_overpaying_names_what_is_still_owed(world: SimpleNamespace) -> None:
+    """An order part-paid by $10.00 says how much is left."""
+    nursery = world.system
+    pay(nursery, world.sam_order, 10.00, day())
+    left = world.sam_order.remaining_balance
+
+    with pytest.raises(OverpaymentError, match=rf"\${left:.2f}"):
+        pay(nursery, world.sam_order, left + 0.01, day())
+    # Paying exactly what is left is still fine.
+    pay(nursery, world.sam_order, left, day())
+    assert world.sam_order.remaining_balance == 0.0
 
 
 def test_orders_waiting_seven_days_are_listed(system: NurserySystem) -> None:
@@ -666,12 +699,12 @@ def test_a_plant_that_is_on_an_order_cannot_be_removed(
 ) -> None:
     """Even a cancelled order keeps its plant, so history stays readable."""
     nursery = world.system
-    with pytest.raises(ValueError, match="has been ordered"):
+    with pytest.raises(PlantInUseError, match="has been ordered"):
         nursery.remove_plant(world.rose)
 
     nursery.cancel_order(world.sam_order)
     nursery.collect_order(world.avril_order)
-    with pytest.raises(ValueError, match="has been ordered"):
+    with pytest.raises(PlantInUseError, match="has been ordered"):
         nursery.remove_plant(world.rose)
     assert world.rose in nursery.search_plants()
 
@@ -701,11 +734,11 @@ def test_a_customer_who_has_ordered_cannot_be_removed(
 ) -> None:
     """Even a cancelled order keeps the customer on record."""
     nursery = world.system
-    with pytest.raises(ValueError, match="placed an order"):
+    with pytest.raises(CustomerInUseError, match="placed an order"):
         nursery.remove_customer(world.sam)
 
     nursery.cancel_order(world.sam_order)
-    with pytest.raises(ValueError, match="placed an order"):
+    with pytest.raises(CustomerInUseError, match="placed an order"):
         nursery.remove_customer(world.sam)
     assert world.sam in nursery.filter_customers("community")
 

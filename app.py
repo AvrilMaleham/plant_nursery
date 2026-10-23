@@ -35,4 +35,10 @@ def create_app() -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=int(os.environ.get("PORT", "5000")))
+    # Debug mode swaps the error page for Flask's debugger, which shows the
+    # code and lets anyone who can reach the site run Python. It is off unless
+    # FLASK_DEBUG=1 is set while developing.
+    app.run(
+        debug=os.environ.get("FLASK_DEBUG") == "1",
+        port=int(os.environ.get("PORT", "5000")),
+    )

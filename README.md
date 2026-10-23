@@ -85,7 +85,7 @@ The sample covers every part of the site: a sold-out cactus, Avril's lavender or
 The tests come in three kinds.
 
 - **Unit tests** need no PostgreSQL server. `tests/test_business_rules.py` checks the classes one at a time. `tests/test_system_rules.py` checks the rules in `NurserySystem` itself, such as the order refusals, removing plants and customers, the price bands, the revenue periods, who may see what, and a receipt after a later payment. It runs the real tables in a throwaway in-memory database, so nothing is saved anywhere.
-- **Integration tests** sign in through the web pages and save into PostgreSQL. `tests/test_workflows.py` follows an order, a counter sale, and the reports from start to finish. `tests/test_validation.py` checks the forms that refuse bad input. These pages are checked by what a person would read on them (the words, the labelled values, and the table rows), so changing a tag, a class, or the spacing in a template does not break a test. Changing what a page says does. Photos uploaded by these tests go to a temporary folder, so `view/static/images` is never written to.
+- **Integration tests** sign in through the web pages and save into PostgreSQL. `tests/test_workflows.py` follows an order, a counter sale, and the reports from start to finish. `tests/test_validation.py` checks the forms that refuse bad input. `tests/test_error_pages.py` checks the 404, 405, and 500 pages, that a crash part way through a request saves nothing, and the reason shown for each removal and payment refusal. These pages are checked by what a person would read on them (the words, the labelled values, and the table rows), so changing a tag, a class, or the spacing in a template does not break a test. Changing what a page says does. Photos uploaded by these tests go to a temporary folder, so `view/static/images` is never written to.
 - **Concurrency tests**, in `tests/test_concurrency.py`, open two database sessions at once, like two staff at two screens, and check that they cannot sell the same stock twice.
 
 To run one file:
@@ -95,16 +95,17 @@ python -m pytest tests/test_business_rules.py
 python -m pytest tests/test_system_rules.py
 python -m pytest tests/test_workflows.py
 python -m pytest tests/test_validation.py
+python -m pytest tests/test_error_pages.py
 python -m pytest tests/test_concurrency.py
 ```
 
-The first two do not need PostgreSQL to be running. The other three do.
+The first two do not need PostgreSQL to be running, and neither do the 404 and 405 tests in `test_error_pages.py`. The rest do.
 
 ## Design Decisions
 
 ### Separation of Concerns
 
-Each entity and each collection has its own file. `Order`, `OrderItem`, `PlantCatalog`, `CustomerDirectory`, `OrderHistory`, and `PaymentHistory` are each in their own file because they do different jobs. A base class stays in the same file as the classes that inherit from it, because those types only make sense together: `plant.py` holds the plant hierarchy, `customer.py` holds the customer hierarchy, and `payment.py` holds the payment hierarchy. The six custom exceptions (four for order rules, two for login and access) share `exceptions.py` so `Plant`, `Order`, and `NurserySystem` can import the same types.
+Each entity and each collection has its own file. `Order`, `OrderItem`, `PlantCatalog`, `CustomerDirectory`, `OrderHistory`, and `PaymentHistory` are each in their own file because they do different jobs. A base class stays in the same file as the classes that inherit from it, because those types only make sense together: `plant.py` holds the plant hierarchy, `customer.py` holds the customer hierarchy, and `payment.py` holds the payment hierarchy. The ten custom exceptions (four for order rules, four for removing and paying, two for login and access) share `exceptions.py` so `Plant`, `Order`, and `NurserySystem` can import the same types.
 
 `NurserySystem` is the only object the rest of the application talks to. It checks that a customer and the plants are already registered, asks the customer whether a new order is allowed, and then adds the order to `OrderHistory`. That keeps registration and the business rules in one place, so an order cannot be created for someone who was never added, or left unrecorded.
 
@@ -149,6 +150,15 @@ Two customers can share a name, so a name on its own is not enough on screen. Th
 ### Custom Exceptions in Their Own File
 
 Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`, `OrderCannotBeCollectedError`, or `OrderCannotBeCancelledError` instead of a generic `ValueError`, so the caller can catch the specific problem. They live in `exceptions.py` so `Plant`, `Order`, and `NurserySystem` import the same types. Each one stores the message in `__message` and passes it to `Exception`. They do not print. Ordinary bad input, such as a price of 0 or a missing card number, is still a `ValueError` because that is invalid data, not an illegal step in an order that already exists.
+
+Four more exceptions cover refusals that used to be plain `ValueError`s, which made them look like bad input:
+
+- `PlantInUseError` is raised by `remove_plant()` when the plant is on any order, including a cancelled one.
+- `CustomerInUseError` is raised by `remove_customer()` when the customer has placed any order.
+- `OverpaymentError` is raised by `Order.record_payment()` when the amount is more than what is still owed. Its message includes what is still owed, such as "Payment cannot be more than what is still owed on this order ($5.99)".
+- `OrderNotPayableError` is raised by the same method when the order has been cancelled or is already paid in full. These are checked before the amount, so a person paying a cancelled order is told it was cancelled, and a person paying a settled order is told it is paid in full. Before this, both were told the payment was "more than what is still owed", which was true but explained nothing.
+
+A payment of 0 or less is still a `ValueError`, because that is invalid input rather than a state of the order. The new exceptions are not `ValueError`s, so a caller can catch one without catching bad input.
 
 ### Login, and What Each Person Can Do
 
@@ -206,7 +216,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 
 ### Login and Authorisation Exceptions
 
-`LoginFailedError` and `NotAuthorisedError` are the two exceptions added for this version. They live in `exceptions.py` with the original four, and they store their message the same way. The controllers catch them in `RULE_ERRORS`, together with `ValueError`, `TypeError`, and the four order exceptions, and `explain()` flashes `str(error)`. A wrong password, a customer opening someone else's order, and a customer trying to collect an order all come back as a message on the page.
+`LoginFailedError` and `NotAuthorisedError` are the two exceptions added for the login. They live in `exceptions.py` with the others, and they store their message the same way. The controllers catch them in `RULE_ERRORS`, together with `ValueError`, `TypeError`, the four order exceptions, and the four removal and payment exceptions, and `explain()` flashes `str(error)`. A wrong password, a customer opening someone else's order, and a customer trying to collect an order all come back as a message on the page.
 
 ## Assumptions
 
@@ -301,7 +311,8 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 - `__str__` is implemented on `Plant`, `Customer`, `Order`, `OrderItem`, `Payment`, the payment subclasses, and `NurserySystem`.
 - Every class and method has a docstring. Parameters and return values include their types. Method parameters and return values have type hints, and so do the object and list attributes.
 - Comments explain the choices that are not obvious from the code, such as why stock can reach 0 only through an order, and why a list getter returns a copy.
-- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four order exceptions, and a failed login or a disallowed action raises `LoginFailedError` or `NotAuthorisedError`. The caller catches all six.
+- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four order exceptions. Removing a plant or customer that is on an order raises `PlantInUseError` or `CustomerInUseError`, and a payment that an order cannot take raises `OverpaymentError` or `OrderNotPayableError`. A failed login or a disallowed action raises `LoginFailedError` or `NotAuthorisedError`. The caller catches all ten.
+- Anything the code did not expect, such as a bug or a database that has stopped, is not caught as a rule. Flask logs the full error for whoever looks after the site, and the person sees an error page that says something went wrong and that nothing from that request was saved. It shows no traceback, SQL, or file paths. `python app.py` runs with Flask's debug mode off for this reason. Set `FLASK_DEBUG=1` to turn it on while developing, which swaps this page for Flask's debugger. A missing address and a button address typed into the browser each get their own page too. All three use the site's layout, with a link back to the dashboard.
 
 ## Requirements from Brent's Final Notes
 
@@ -333,8 +344,8 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 
 - Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
 - `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
-- `LoginFailedError` and `NotAuthorisedError` are the two new custom exceptions. The controllers flash those, and the original four, with the message the model raised.
-- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_system_rules.py` holds the unit tests for `NurserySystem`: the `LoginFailedError` and `NotAuthorisedError` cases for every team-only and own-account-only action, every refusal when placing an order, the plant and customer removal refusals, the price bands at $10 and $30, the revenue day, week, and month edges, and a receipt that still shows the earlier balance after a later payment. It uses an in-memory database, so it needs no PostgreSQL server. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. The integration tests read pages through `tests/web.py`, which gives them the words, labelled values, and table rows on a page instead of its HTML, and they save uploaded photos to a temporary folder.
+- `LoginFailedError` and `NotAuthorisedError` are the two login exceptions, and `PlantInUseError`, `CustomerInUseError`, `OverpaymentError`, and `OrderNotPayableError` are the four removal and payment exceptions. The controllers flash those, and the original four, with the message the model raised. `controller/blueprint.py` also registers error pages for 404, 405, and 500, drawn by `view/templates/error.html`.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_system_rules.py` holds the unit tests for `NurserySystem`: the `LoginFailedError` and `NotAuthorisedError` cases for every team-only and own-account-only action, every refusal when placing an order, the plant and customer removal refusals, the price bands at $10 and $30, the revenue day, week, and month edges, and a receipt that still shows the earlier balance after a later payment. It also covers the four removal and payment exceptions, including that a cancelled or paid order is not reported as an overpayment. It uses an in-memory database, so it needs no PostgreSQL server. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. `tests/test_error_pages.py` holds the tests for the 404, 405, and 500 pages, for a failed request saving nothing, and for the reason shown with each removal and payment refusal. The integration tests read pages through `tests/web.py`, which gives them the words, labelled values, and table rows on a page instead of its HTML, and they save uploaded photos to a temporary folder.
 
 ## Generative AI
 
