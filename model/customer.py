@@ -23,7 +23,7 @@ class Customer(Base):
     __tablename__ = "customers"
     __table_args__ = (
         CheckConstraint("balance >= 0", name="ck_customers_balance"),
-        CheckConstraint("btrim(cust_name) <> ''", name="ck_customers_name"),
+        CheckConstraint("trim(cust_name) <> ''", name="ck_customers_name"),
         CheckConstraint(
             "customer_type IN ('staff', 'student', 'community')",
             name="ck_customers_type",

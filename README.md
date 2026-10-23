@@ -41,7 +41,7 @@ Nothing is printed when it works. This only lasts for the terminal you ran it in
 python seed.py
 ```
 
-This creates the `plant_nursery` database, creates the tables, and loads the sample data. It ends with a line starting `Nursery System: 6 plants, 3 customers...`. Running it again clears the tables and loads the same sample.
+This creates the `plant_nursery` database, creates the tables, and loads the sample data. It ends with a line starting `Nursery System: 6 plants, 3 customers...`. Running it again clears the tables and loads the same sample. If you set the project up before `payments` had a `recorded_at` column, run it again so the table is rebuilt with the column. It clears the data, so it is the same as starting from the sample.
 
 ### 4. Start the website
 
@@ -82,13 +82,23 @@ Right-click the server and choose Refresh. Open Databases, then `plant_nursery`,
 
 The sample covers every part of the site: a sold-out cactus, Avril's lavender order that has been pending for ten days, Jane's cancelled order and her order of twelve tomato punnets, and Sam's order of an orchid and lavender, paid with a debit card and then a credit card, and collected.
 
-The unit tests in `tests/test_business_rules.py` check the business rules without the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. The tests in `tests/test_concurrency.py` open two database sessions at once, like two staff at two screens, and check that they cannot sell the same stock twice. To run one file:
+The tests come in three kinds.
+
+- **Unit tests** need no PostgreSQL server. `tests/test_business_rules.py` checks the classes one at a time. `tests/test_system_rules.py` checks the rules in `NurserySystem` itself, such as the order refusals, removing plants and customers, the price bands, the revenue periods, who may see what, and a receipt after a later payment. It runs the real tables in a throwaway in-memory database, so nothing is saved anywhere.
+- **Integration tests** sign in through the web pages and save into PostgreSQL. `tests/test_workflows.py` follows an order, a counter sale, and the reports from start to finish. `tests/test_validation.py` checks the forms that refuse bad input. These pages are checked by what a person would read on them (the words, the labelled values, and the table rows), so changing a tag, a class, or the spacing in a template does not break a test. Changing what a page says does. Photos uploaded by these tests go to a temporary folder, so `view/static/images` is never written to.
+- **Concurrency tests**, in `tests/test_concurrency.py`, open two database sessions at once, like two staff at two screens, and check that they cannot sell the same stock twice.
+
+To run one file:
 
 ```bash
 python -m pytest tests/test_business_rules.py
+python -m pytest tests/test_system_rules.py
 python -m pytest tests/test_workflows.py
+python -m pytest tests/test_validation.py
 python -m pytest tests/test_concurrency.py
 ```
+
+The first two do not need PostgreSQL to be running. The other three do.
 
 ## Design Decisions
 
@@ -178,7 +188,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 
 `Invoice` is built from the order. Each `InvoiceLine` shows the plant, the quantity in that plant's sale unit, the line cost, and the bulk discount on that line, which is the difference between the full line and `item_cost` when the quantity is at least 10. The customer discount is the difference between the sum of the line costs and `order_total`. The order page is the invoice. It shows the order number (`Order.order_number`, eight characters taken from the order ID the same way the customer number is), the customer, the date, and a table with each item's quantity, price per unit, bulk discount, and line cost. The bulk discount column only appears when a line has one. Under the table are the total cost, the bulk discount, the customer discount, and the **total to pay**, followed by what has been paid and what is still outstanding. The total to pay stays on the page after the order is settled, so a printed copy still shows what the order came to. The print button uses the browser print dialog. The buttons and the payment form are marked `no-print`, so the printed page is the invoice.
 
-`Receipt` is built from one payment. It shows the amount applied to the order, the card type, the surcharge from `amount_charged()`, and what was still owed on the order after that payment. `receipt_for()` walks that order's payments in time order so an earlier receipt still shows the balance left at that time, even after a later payment. A credit card payment of the remaining balance still reduces the order by the balance and charges 1.5% more. The receipt page has its own print button.
+`Receipt` is built from one payment. It shows the amount applied to the order, the card type, the surcharge from `amount_charged()`, and what was still owed on the order after that payment. `receipt_for()` walks that order's payments in time order so an earlier receipt still shows the balance left at that time, even after a later payment. Payments are sorted by their payment date, and two payments on the same date by `recorded_at`, a timestamp each payment is given when it is created. Payments on the same day therefore keep the order they were taken in. A credit card payment of the remaining balance still reduces the order by the balance and charges 1.5% more. The receipt page has its own print button.
 
 `Order.is_uncollected_too_long()` is true when the status is still `pending` and at least `UNCOLLECTED_AFTER_DAYS` (7) days have passed since the order date. Collected and cancelled orders are not flagged. The team dashboard and the customer's own order list both show that flag, and the order's `__str__` adds the same follow-up text.
 
@@ -324,7 +334,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 - Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
 - `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
 - `LoginFailedError` and `NotAuthorisedError` are the two new custom exceptions. The controllers flash those, and the original four, with the message the model raised.
-- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. The unit tests also cover blank names on the model.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_system_rules.py` holds the unit tests for `NurserySystem`: the `LoginFailedError` and `NotAuthorisedError` cases for every team-only and own-account-only action, every refusal when placing an order, the plant and customer removal refusals, the price bands at $10 and $30, the revenue day, week, and month edges, and a receipt that still shows the earlier balance after a later payment. It uses an in-memory database, so it needs no PostgreSQL server. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. The integration tests read pages through `tests/web.py`, which gives them the words, labelled values, and table rows on a page instead of its HTML, and they save uploaded photos to a temporary folder.
 
 ## Generative AI
 

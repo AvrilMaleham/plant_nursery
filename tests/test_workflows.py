@@ -4,9 +4,13 @@ Integration tests for three nursery workflows.
 Each test starts at a screen, follows the links and forms a person would use,
 and checks the page that comes back. The records are read again in a new
 login, so the result has to have been stored in PostgreSQL.
+
+Pages are read through tests/web.py, which gives the words, the labelled
+values, and the table rows a person would see. Nothing here depends on the
+tags or classes in a template. Photos uploaded by a test go to a temporary
+folder, so view/static/images is only read.
 """
 
-import re
 from datetime import date, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -17,88 +21,18 @@ from model.customer import StaffCustomer, StudentCustomer
 from model.database import session_scope
 from model.nursery_system import NurserySystem
 from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
-
-IMAGES = Path(__file__).resolve().parents[1] / "view" / "static" / "images"
-# A one-pixel PNG. The catalog stores the file and the plant page shows it.
-PHOTO = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
-    b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
-    b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4"
-    b"\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+from web import PHOTO, login, logout, page, record_id, referred_from
 
 
-def page(response: object) -> str:
+def stock_of(client: FlaskClient, plant_path: str) -> str:
     """
-    Return the HTML from a response that finished on a page.
-
-    :param response (object): The response from the test client
-    :return (str): The page HTML
-    """
-    assert response.status_code == 200
-    return response.get_data(as_text=True)
-
-
-def login(client: FlaskClient, username: str, password: str) -> str:
-    """
-    Sign in through the login form.
+    Read the stock a plant page shows.
 
     :param client (FlaskClient): The browser session
-    :param username (str): Login name
-    :param password (str): The password as typed
-    :return (str): The dashboard HTML
+    :param plant_path (str): The plant page, such as /plants/<id>
+    :return (str): The stock as shown
     """
-    response = client.post(
-        "/login",
-        data={"username": username, "password": password},
-        follow_redirects=True,
-    )
-    return page(response)
-
-
-def logout(client: FlaskClient) -> None:
-    """
-    Sign out through the logout button.
-
-    :param client (FlaskClient): The browser session
-    """
-    response = client.post("/logout", follow_redirects=True)
-    assert response.status_code == 200
-
-
-def shows_stock(html: str, stock: int) -> None:
-    """
-    Check the stock shown on a plant page.
-
-    :param html (str): The plant page HTML
-    :param stock (int): The stock that should be shown
-    """
-    assert re.search(rf"Stock</dt>\s*<dd>\s*{stock}\s*</dd>", html), html
-
-
-def record_id(path: str) -> str:
-    """
-    Return the id at the end of a page address.
-
-    :param path (str): A path such as /plants/<id>
-    :return (str): The id
-    """
-    return path.rstrip("/").rsplit("/", 1)[-1]
-
-
-def linked_path(html: str, prefix: str) -> str:
-    """
-    Return the first link whose address starts with prefix and then an id.
-
-    :param html (str): The page HTML
-    :param prefix (str): The start of the address, such as /plants
-    :return (str): The matching path
-    """
-    found = re.findall(
-        rf'href="({re.escape(prefix)}/[0-9a-fA-F-]{{36}})"', html
-    )
-    assert found, f"No {prefix} link on the page"
-    return found[0]
+    return page(client.get(plant_path)).value("Stock")
 
 
 def open_order(client: FlaskClient) -> str:
@@ -108,8 +42,7 @@ def open_order(client: FlaskClient) -> str:
     :param client (FlaskClient): The browser session
     :return (str): The order page path
     """
-    listing = page(client.get("/orders"))
-    order_path = linked_path(listing, "/orders")
+    order_path = page(client.get("/orders")).link_to("/orders")
     assert client.get(order_path).status_code == 200
     return order_path
 
@@ -179,13 +112,13 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     assert "Cactus" not in found
     assert "No plants match that search." not in found
 
-    detail_path = linked_path(found, "/plants")
+    detail_path = found.link_to("/plants")
     detail = page(client.get(detail_path))
     assert "Tomato" in detail
     assert "vegetable seedlings" in detail
     assert "$4.50 per punnet" in detail
-    assert "Seedlings per punnet</dt><dd>6</dd>" in detail
-    assert 'src="/static/images/tomato.png"' in detail
+    assert detail.value("Seedlings per punnet") == "6"
+    assert "/static/images/tomato.png" in detail.images
     photo = client.get("/static/images/tomato.png")
     assert photo.status_code == 200
     assert photo.data.startswith(b"\x89PNG")
@@ -200,29 +133,33 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     invoice = page(ordered)
     order_path = ordered.request.path
     assert "Order placed." in invoice
-    assert "12 punnet" in invoice
-    assert "Total cost" in invoice
-    assert "$54.00" in invoice
-    assert "Bulk discount" in invoice
-    assert "$5.40" in invoice
-    assert "Customer discount" in invoice
-    assert "$2.43" in invoice
-    assert "Outstanding" in invoice
-    assert "$46.17" in invoice
-    assert "pending" in invoice
-    # Each line shows its own bulk discount and cost, and the invoice names
-    # the order and the amount to pay.
-    assert "Order number" in invoice
-    assert "Bulk discount (10+)" in invoice
-    assert "-$5.40" in invoice
-    assert "Line cost" in invoice
-    assert "$48.60" in invoice
-    assert "Total to pay" in invoice
+    assert invoice.value("Order number")
+    assert invoice.value("Customer") == "Jane"
+    assert invoice.value("Status") == "pending"
 
-    shows_stock(page(client.get(f"/plants/{tomato_id}")), 38)
+    # Each line shows its own bulk discount and cost.
+    lines = invoice.section("Invoice")
+    assert lines.headers == [
+        "Item",
+        "Quantity",
+        "Cost per unit",
+        "Bulk discount (10+)",
+        "Line cost",
+    ]
+    assert lines.rows == [
+        ["Tomato", "12 punnet", "$4.50", "-$5.40", "$48.60"]
+    ]
+    assert invoice.value("Total cost") == "$54.00"
+    assert invoice.value("Bulk discount") == "-$5.40"
+    assert invoice.value("Customer discount") == "-$2.43"
+    assert invoice.value("Total to pay") == "$46.17"
+    assert invoice.value("Payments") == "$0.00"
+    assert invoice.value("Outstanding") == "$46.17"
+
+    assert stock_of(client, f"/plants/{tomato_id}") == "38"
 
     # The credit card adds 1.5%. $10.00 charged is $10.15, and $36.17 remains.
-    receipt = client.post(
+    receipt = page(client.post(
         f"{order_path}/pay",
         data={
             "amount": "10.00",
@@ -231,18 +168,15 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
             "expiry_date": "12-28",
         },
         follow_redirects=True,
-    )
-    receipt_html = page(receipt)
-    assert "Payment recorded." in receipt_html
-    assert "Paid" in receipt_html
-    assert "$10.00" in receipt_html
-    assert "credit card" in receipt_html
-    assert "Card surcharge" in receipt_html
-    assert "$0.15" in receipt_html
-    assert "Charged" in receipt_html
-    assert "$10.15" in receipt_html
-    assert "Still to pay after this payment" in receipt_html
-    assert "$36.17" in receipt_html
+    ))
+    assert "Payment recorded." in receipt
+    assert receipt.value("Paid") == "$10.00"
+    assert "credit card" in receipt.value("How")
+    assert receipt.value("Card surcharge") == "$0.15"
+    assert receipt.value("Charged") == "$10.15"
+    assert receipt.value("Still to pay after this payment") == "$36.17"
+    assert receipt.value("Order number") == invoice.value("Order number")
+    assert receipt.link_to("/orders") == order_path
 
     overpaid = client.post(
         f"{order_path}/pay",
@@ -252,26 +186,26 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
             "card_number": "1111222233334444",
             "bank_name": "ANZ",
         },
-        headers={"Referer": f"http://localhost{order_path}"},
+        headers=referred_from(order_path),
         follow_redirects=True,
     )
     assert "Payment cannot be more than what is still owed" in page(overpaid)
     still_open = page(client.get(order_path))
-    assert "$36.17" in still_open
-    assert "pending" in still_open
+    assert still_open.value("Outstanding") == "$36.17"
+    assert still_open.value("Status") == "pending"
 
     # Anything already paid stops the order from being cancelled.
     cancelled = client.post(
         f"{order_path}/cancel",
-        headers={"Referer": f"http://localhost{order_path}"},
+        headers=referred_from(order_path),
         follow_redirects=True,
     )
     assert "Cannot cancel an order that has already been paid toward" in page(
         cancelled
     )
-    assert "pending" in page(client.get(order_path))
+    assert page(client.get(order_path)).value("Status") == "pending"
 
-    settled = client.post(
+    settled = page(client.post(
         f"{order_path}/pay",
         data={
             "amount": "36.17",
@@ -280,16 +214,16 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
             "bank_name": "ANZ",
         },
         follow_redirects=True,
-    )
-    settled_html = page(settled)
-    assert "debit card" in settled_html
-    assert "Still to pay after this payment</dt><dd>$0.00</dd>" in settled_html
+    ))
+    assert "debit card" in settled.value("How")
+    assert settled.value("Still to pay after this payment") == "$0.00"
 
     # Once the order is paid in full, a printed invoice still shows what the
     # order came to.
     paid_invoice = page(client.get(order_path))
-    assert "Total to pay</dt><dd class=\"grand\">$46.17</dd>" in paid_invoice
-    assert "Outstanding</dt><dd>$0.00</dd>" in paid_invoice
+    assert paid_invoice.value("Total to pay") == "$46.17"
+    assert paid_invoice.value("Payments") == "$46.17"
+    assert paid_invoice.value("Outstanding") == "$0.00"
 
     payments = page(client.get("/payments"))
     assert "credit card" in payments
@@ -305,10 +239,12 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     assert "Jane" in own_orders
     assert "$46.17" in own_orders
     assert "$0.00" in own_orders
-    shows_stock(page(client.get(f"/plants/{tomato_id}")), 38)
+    assert stock_of(client, f"/plants/{tomato_id}") == "38"
 
 
-def test_team_sells_at_the_counter_and_collects(client: FlaskClient) -> None:
+def test_team_sells_at_the_counter_and_collects(
+    client: FlaskClient, photo_dir: Path
+) -> None:
     """
     The team adds a plant and a community customer, then sells and collects.
 
@@ -327,234 +263,223 @@ def test_team_sells_at_the_counter_and_collects(client: FlaskClient) -> None:
         system.add_plant(cactus)
         cactus_id = str(cactus.plant_id)
 
-    before = {path.name for path in IMAGES.iterdir()}
-    try:
-        home = login(client, "teamUsername", "TeamPassword")
-        assert "Logged in as the nursery team." in home
-        assert "Nursery desk" in home
+    home = login(client, "teamUsername", "TeamPassword")
+    assert "Logged in as the nursery team." in home
+    assert "Nursery desk" in home
 
-        added = client.post(
-            "/plants/new",
-            data={
-                "plant_name": "Camellia",
-                "plant_type": "trees and shrubs",
-                "price": "16.00",
-                "stock": "10",
-                "photo": (BytesIO(PHOTO), "camellia.png"),
-            },
-            follow_redirects=True,
+    added = client.post(
+        "/plants/new",
+        data={
+            "plant_name": "Camellia",
+            "plant_type": "trees and shrubs",
+            "price": "16.00",
+            "stock": "10",
+            "photo": (BytesIO(PHOTO), "camellia.png"),
+        },
+        follow_redirects=True,
+    )
+    plant = page(added)
+    plant_path = added.request.path
+    plant_id = record_id(plant_path)
+    assert "Camellia added to the catalog." in plant
+    assert "trees and shrubs" in plant
+    assert "$16.00 per plant" in plant
+    assert plant.value("Stock") == "10"
+
+    # The upload is saved under a new name, and the page shows that file.
+    uploads = list(photo_dir.iterdir())
+    assert len(uploads) == 1
+    assert uploads[0].name != "camellia.png"
+    assert uploads[0].read_bytes() == PHOTO
+    assert plant.images == [f"/static/images/{uploads[0].name}"]
+
+    # Price and stock have their own forms, so one change never depends
+    # on the other.
+    repriced = page(client.post(
+        f"{plant_path}/price",
+        data={"price": "16.00"},
+        follow_redirects=True,
+    ))
+    assert "Camellia price updated." in repriced
+    assert "$16.00 per plant" in repriced
+    assert repriced.value("Stock") == "10"
+
+    updated = page(client.post(
+        f"{plant_path}/stock",
+        data={"stock": "20"},
+        follow_redirects=True,
+    ))
+    assert "Camellia stock updated." in updated
+    assert updated.value("Stock") == "20"
+
+    # A sold-out plant can be repriced without being restocked, and a
+    # new batch can then be added. Stock still cannot be set to 0.
+    cactus_path = f"/plants/{cactus_id}"
+    assert "Out of stock" in page(client.get(cactus_path))
+    cactus_repriced = page(client.post(
+        f"{cactus_path}/price",
+        data={"price": "7.50"},
+        follow_redirects=True,
+    ))
+    assert "Cactus price updated." in cactus_repriced
+    assert "$7.50 per pot" in cactus_repriced
+    assert "Out of stock" in cactus_repriced
+
+    zero_stock = client.post(
+        f"{cactus_path}/stock",
+        data={"stock": "0"},
+        headers=referred_from(cactus_path),
+        follow_redirects=True,
+    )
+    assert "Plant stock must be greater than 0" in page(zero_stock)
+    assert "Out of stock" in page(client.get(cactus_path))
+
+    cactus_restocked = page(client.post(
+        f"{cactus_path}/stock",
+        data={"stock": "12"},
+        follow_redirects=True,
+    ))
+    assert "Cactus stock updated." in cactus_restocked
+    assert cactus_restocked.value("Stock") == "12"
+    assert "$7.50 per pot" in cactus_restocked
+    assert "Out of stock" not in cactus_restocked
+
+    created = client.post(
+        "/customers/new",
+        data={
+            "cust_name": "Sam",
+            "customer_type": "community",
+            "cust_email": "sam@email.com",
+            "cust_phone": "",
+            "username": "samUsername",
+            "password": "SamPassword",
+        },
+        follow_redirects=True,
+    )
+    customer = page(created)
+    customer_id = record_id(created.request.path)
+    assert "Sam added." in customer
+    assert "community" in customer
+    assert "sam@email.com" in customer
+    assert customer.value("Owes") == "$0.00"
+
+    # Two plants at $16 with no community discount is $32.00.
+    first = client.post(
+        "/orders/new",
+        data={"customer_id": customer_id, f"qty-{plant_id}": "2"},
+        follow_redirects=True,
+    )
+    first_order = page(first)
+    order_path = first.request.path
+    assert "Order placed." in first_order
+    assert first_order.value("Customer") == "Sam"
+    assert first_order.value("Total cost") == "$32.00"
+    assert "Bulk discount" not in first_order.definitions
+    assert "Customer discount" not in first_order.definitions
+    assert first_order.value("Total to pay") == "$32.00"
+    assert first_order.value("Outstanding") == "$32.00"
+    assert first_order.value("Status") == "pending"
+    assert stock_of(client, plant_path) == "18"
+
+    # The same pending-order rule applies when the team sells for them.
+    blocked = client.post(
+        "/orders/new",
+        data={"customer_id": customer_id, f"qty-{plant_id}": "1"},
+    )
+    assert (
+        "Community customers may only have one pending order at a time"
+        in page(blocked)
+    )
+    assert stock_of(client, plant_path) == "18"
+
+    # Nothing has been paid, so the team can cancel and the stock returns.
+    cancelled = page(client.post(
+        f"{order_path}/cancel",
+        follow_redirects=True,
+    ))
+    assert "Order cancelled." in cancelled
+    assert cancelled.value("Status") == "cancelled"
+    assert stock_of(client, plant_path) == "20"
+
+    # Collection is refused until a community order is paid in full.
+    second = client.post(
+        "/orders/new",
+        data={"customer_id": customer_id, f"qty-{plant_id}": "2"},
+        follow_redirects=True,
+    )
+    second_order = page(second)
+    second_path = second.request.path
+    assert "Order placed." in second_order
+    assert second_order.value("Status") == "pending"
+    too_soon = client.post(
+        f"{second_path}/collect",
+        headers=referred_from(second_path),
+        follow_redirects=True,
+    )
+    assert (
+        "Community customers must pay an order in full "
+        "before it can be collected"
+        in page(too_soon)
+    )
+    assert page(client.get(second_path)).value("Status") == "pending"
+
+    receipt = page(client.post(
+        f"{second_path}/pay",
+        data={
+            "amount": "32.00",
+            "method": "debit card",
+            "card_number": "1111222233334444",
+            "bank_name": "ANZ",
+        },
+        follow_redirects=True,
+    ))
+    assert "Payment recorded." in receipt
+    assert "debit card" in receipt.value("How")
+    assert receipt.value("Paid") == "$32.00"
+    assert receipt.value("Still to pay after this payment") == "$0.00"
+
+    collected = page(client.post(
+        f"{second_path}/collect",
+        follow_redirects=True,
+    ))
+    assert "Order marked as collected." in collected
+    assert collected.value("Status") == "collected"
+
+    # Sam sees the sale, and the team screens stay closed.
+    logout(client)
+    sam_home = login(client, "samUsername", "SamPassword")
+    assert "Hello, Sam" in sam_home
+    assert "Community customer" in sam_home
+    assert "You currently owe $0.00." in sam_home
+    sam_order = page(client.get(second_path))
+    assert sam_order.value("Status") == "collected"
+    assert sam_order.value("Total to pay") == "$32.00"
+    sold = [row[0] for row in sam_order.section("Invoice").rows]
+    assert sold == ["Camellia"]
+    assert "Mark collected" not in sam_order
+
+    refused = client.post(
+        f"{second_path}/collect",
+        headers=referred_from(second_path),
+        follow_redirects=True,
+    )
+    assert "Only the nursery team can do that" in page(refused)
+    assert page(client.get(second_path)).value("Status") == "collected"
+
+    for address in ("/customers", "/reports", "/plants/new"):
+        blocked_page = client.get(address, follow_redirects=True)
+        assert "Only the nursery team can do that" in page(blocked_page)
+
+    logout(client)
+    # A later login reads the collected order back from the database.
+    with client.application.test_client() as fresh:
+        login(fresh, "samUsername", "SamPassword")
+        collected_orders = page(fresh.get("/orders?status=collected"))
+        assert "Sam" in collected_orders
+        assert "$32.00" in collected_orders
+        assert "No orders to show." in page(
+            fresh.get("/orders?status=pending")
         )
-        plant_html = page(added)
-        plant_path = added.request.path
-        plant_id = record_id(plant_path)
-        assert "Camellia added to the catalog." in plant_html
-        assert "trees and shrubs" in plant_html
-        assert "$16.00 per plant" in plant_html
-        shows_stock(plant_html, 10)
-        photo_name = re.search(r'/static/images/([^"]+)"', plant_html)
-        assert photo_name is not None
-        assert photo_name.group(1) != "camellia.png"
-        stored_photo = client.get(f"/static/images/{photo_name.group(1)}")
-        assert stored_photo.status_code == 200
-        assert stored_photo.data == PHOTO
-
-        # Price and stock have their own forms, so one change never depends
-        # on the other.
-        repriced = client.post(
-            f"{plant_path}/price",
-            data={"price": "16.00"},
-            follow_redirects=True,
-        )
-        repriced_html = page(repriced)
-        assert "Camellia price updated." in repriced_html
-        assert "$16.00 per plant" in repriced_html
-        shows_stock(repriced_html, 10)
-
-        updated = client.post(
-            f"{plant_path}/stock",
-            data={"stock": "20"},
-            follow_redirects=True,
-        )
-        updated_html = page(updated)
-        assert "Camellia stock updated." in updated_html
-        shows_stock(updated_html, 20)
-
-        # A sold-out plant can be repriced without being restocked, and a
-        # new batch can then be added. Stock still cannot be set to 0.
-        cactus_path = f"/plants/{cactus_id}"
-        assert "Out of stock" in page(client.get(cactus_path))
-        cactus_repriced = page(client.post(
-            f"{cactus_path}/price",
-            data={"price": "7.50"},
-            follow_redirects=True,
-        ))
-        assert "Cactus price updated." in cactus_repriced
-        assert "$7.50 per pot" in cactus_repriced
-        assert "Out of stock" in cactus_repriced
-
-        zero_stock = client.post(
-            f"{cactus_path}/stock",
-            data={"stock": "0"},
-            headers={"Referer": f"http://localhost{cactus_path}"},
-            follow_redirects=True,
-        )
-        assert "Plant stock must be greater than 0" in page(zero_stock)
-        assert "Out of stock" in page(client.get(cactus_path))
-
-        cactus_restocked = page(client.post(
-            f"{cactus_path}/stock",
-            data={"stock": "12"},
-            follow_redirects=True,
-        ))
-        assert "Cactus stock updated." in cactus_restocked
-        shows_stock(cactus_restocked, 12)
-        assert "$7.50 per pot" in cactus_restocked
-
-        created = client.post(
-            "/customers/new",
-            data={
-                "cust_name": "Sam",
-                "customer_type": "community",
-                "cust_email": "sam@email.com",
-                "cust_phone": "",
-                "username": "samUsername",
-                "password": "SamPassword",
-            },
-            follow_redirects=True,
-        )
-        customer_html = page(created)
-        customer_id = record_id(created.request.path)
-        assert "Sam added." in customer_html
-        assert "community" in customer_html
-        assert "sam@email.com" in customer_html
-        assert "Owes</dt><dd>$0.00</dd>" in customer_html
-
-        # Two plants at $16 with no community discount is $32.00.
-        first = client.post(
-            "/orders/new",
-            data={"customer_id": customer_id, f"qty-{plant_id}": "2"},
-            follow_redirects=True,
-        )
-        first_html = page(first)
-        order_path = first.request.path
-        assert "Order placed." in first_html
-        assert "Sam" in first_html
-        assert "Total cost" in first_html
-        assert "$32.00" in first_html
-        assert "Bulk discount" not in first_html
-        assert "Customer discount" not in first_html
-        assert "Outstanding" in first_html
-        assert "Status</dt><dd>pending</dd>" in first_html
-        shows_stock(page(client.get(plant_path)), 18)
-
-        # The same pending-order rule applies when the team sells for them.
-        blocked = client.post(
-            "/orders/new",
-            data={"customer_id": customer_id, f"qty-{plant_id}": "1"},
-        )
-        assert (
-            "Community customers may only have one pending order at a time"
-            in page(blocked)
-        )
-        shows_stock(page(client.get(plant_path)), 18)
-
-        # Nothing has been paid, so the team can cancel and the stock returns.
-        cancelled = client.post(
-            f"{order_path}/cancel",
-            follow_redirects=True,
-        )
-        cancelled_html = page(cancelled)
-        assert "Order cancelled." in cancelled_html
-        assert "Status</dt><dd>cancelled</dd>" in cancelled_html
-        shows_stock(page(client.get(plant_path)), 20)
-
-        # Collection is refused until a community order is paid in full.
-        second = client.post(
-            "/orders/new",
-            data={"customer_id": customer_id, f"qty-{plant_id}": "2"},
-            follow_redirects=True,
-        )
-        second_html = page(second)
-        second_path = second.request.path
-        assert "Order placed." in second_html
-        assert "Status</dt><dd>pending</dd>" in second_html
-        too_soon = client.post(
-            f"{second_path}/collect",
-            headers={"Referer": f"http://localhost{second_path}"},
-            follow_redirects=True,
-        )
-        assert (
-            "Community customers must pay an order in full "
-            "before it can be collected"
-            in page(too_soon)
-        )
-        assert "Status</dt><dd>pending</dd>" in page(client.get(second_path))
-
-        receipt = client.post(
-            f"{second_path}/pay",
-            data={
-                "amount": "32.00",
-                "method": "debit card",
-                "card_number": "1111222233334444",
-                "bank_name": "ANZ",
-            },
-            follow_redirects=True,
-        )
-        receipt_html = page(receipt)
-        assert "Payment recorded." in receipt_html
-        assert "debit card" in receipt_html
-        assert "Paid</dt><dd>$32.00</dd>" in receipt_html
-        assert (
-            "Still to pay after this payment</dt><dd>$0.00</dd>"
-            in receipt_html
-        )
-
-        collected = client.post(
-            f"{second_path}/collect",
-            follow_redirects=True,
-        )
-        collected_html = page(collected)
-        assert "Order marked as collected." in collected_html
-        assert "Status</dt><dd>collected</dd>" in collected_html
-
-        # Sam sees the sale, and the team screens stay closed.
-        logout(client)
-        sam_home = login(client, "samUsername", "SamPassword")
-        assert "Hello, Sam" in sam_home
-        assert "Community customer" in sam_home
-        assert "You currently owe $0.00." in sam_home
-        sam_order = page(client.get(second_path))
-        assert "Status</dt><dd>collected</dd>" in sam_order
-        assert "Invoice" in sam_order
-        assert "$32.00" in sam_order
-        assert "Mark collected" not in sam_order
-
-        refused = client.post(
-            f"{second_path}/collect",
-            headers={"Referer": f"http://localhost{second_path}"},
-            follow_redirects=True,
-        )
-        assert "Only the nursery team can do that" in page(refused)
-        assert "Status</dt><dd>collected</dd>" in page(client.get(second_path))
-
-        for address in ("/customers", "/reports", "/plants/new"):
-            blocked_page = client.get(address, follow_redirects=True)
-            assert "Only the nursery team can do that" in page(blocked_page)
-
-        logout(client)
-        # A later login reads the collected order back from the database.
-        with client.application.test_client() as fresh:
-            login(fresh, "samUsername", "SamPassword")
-            collected_orders = page(fresh.get("/orders?status=collected"))
-            assert "Sam" in collected_orders
-            assert "$32.00" in collected_orders
-            assert "No orders to show." in page(
-                fresh.get("/orders?status=pending")
-            )
-    finally:
-        for image in IMAGES.iterdir():
-            if image.name not in before:
-                image.unlink()
 
 
 def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
@@ -591,11 +516,11 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
     assert placed_on in home
 
     order_path = open_order(client)
-    order_html = page(client.get(order_path))
-    assert "Uncollected for 7 days or more" in order_html
-    assert "Status</dt><dd>pending</dd>" in order_html
-    assert "$94.98" in order_html
-    shows_stock(page(client.get(f"/plants/{rose_id}")), 14)
+    order = page(client.get(order_path))
+    assert "Uncollected for 7 days or more" in order
+    assert order.value("Status") == "pending"
+    assert order.value("Total to pay") == "$94.98"
+    assert stock_of(client, f"/plants/{rose_id}") == "14"
 
     # One more rose would be $15.83 and would take the balance over $100.
     blocked = client.post(
@@ -608,7 +533,7 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
         in page(blocked)
     )
     assert "You currently owe $94.98." in page(client.get("/"))
-    shows_stock(page(client.get(f"/plants/{rose_id}")), 14)
+    assert stock_of(client, f"/plants/{rose_id}") == "14"
 
     hidden = client.get("/reports", follow_redirects=True)
     assert "Only the nursery team can do that" in page(hidden)
@@ -624,7 +549,7 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
     assert "Avril" in pending
 
     # A debit card has no surcharge, so $20.00 paid is $20.00 charged.
-    receipt = client.post(
+    receipt = page(client.post(
         f"{order_path}/pay",
         data={
             "amount": "20.00",
@@ -633,15 +558,11 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
             "bank_name": "ANZ",
         },
         follow_redirects=True,
-    )
-    receipt_html = page(receipt)
-    assert "Payment recorded." in receipt_html
-    assert "Paid</dt><dd>$20.00</dd>" in receipt_html
-    assert "Card surcharge</dt><dd>$0.00</dd>" in receipt_html
-    assert (
-        "Still to pay after this payment</dt><dd>$74.98</dd>"
-        in receipt_html
-    )
+    ))
+    assert "Payment recorded." in receipt
+    assert receipt.value("Paid") == "$20.00"
+    assert receipt.value("Card surcharge") == "$0.00"
+    assert receipt.value("Still to pay after this payment") == "$74.98"
 
     reported = page(client.get(
         "/reports",
@@ -652,28 +573,29 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
             "customer_id": customer_id,
         },
     ))
-    most, after_most = reported.split("Least ordered", 1)
-    least, after_least = after_most.split("Revenue", 1)
-    history, activity = after_least.split("Customer activity", 1)
-    assert most.index("Rose") < most.index("Lavender")
-    assert ">Rose</td><td>6</td>" in most
-    assert ">Lavender</td><td>0</td>" in least
-    assert least.index("Lavender") < least.index("Rose")
-    assert "Charged in that day: $20.00" in reported
-    assert "Avril" in history
-    assert placed_on in history
-    assert re.search(r"pending</td>\s*<td>\s*6\s*</td>", history)
-    assert "placed" in activity
-    assert "Paid $20.00 toward order" in activity
+    most = reported.section("Most ordered")
+    least = reported.section("Least ordered")
+    assert most.rows == [["Rose", "6"], ["Lavender", "0"]]
+    assert least.rows == [["Lavender", "0"], ["Rose", "6"]]
+    assert "Charged in that day: $20.00" in reported.section("Revenue")
 
-    collected = client.post(
+    # One row for the one order: date, customer, status, quantity.
+    [history_row] = reported.section("Plant order history").rows
+    assert history_row[0] == placed_on
+    assert history_row[1].startswith("Avril")
+    assert history_row[2:] == ["pending", "6"]
+
+    activity = reported.section("Customer activity").items
+    assert any("placed" in record for record in activity)
+    assert any("Paid $20.00 toward order" in record for record in activity)
+
+    collected = page(client.post(
         f"{order_path}/collect",
         follow_redirects=True,
-    )
-    collected_html = page(collected)
-    assert "Order marked as collected." in collected_html
-    assert "Status</dt><dd>collected</dd>" in collected_html
-    assert "Uncollected for 7 days or more" not in collected_html
+    ))
+    assert "Order marked as collected." in collected
+    assert collected.value("Status") == "collected"
+    assert "Uncollected for 7 days or more" not in collected
 
     # Staff can be collected while they still owe the rest.
     desk_after = page(client.get("/"))
@@ -688,15 +610,15 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
             "plant_id": rose_id,
         },
     ))
-    activity_after = followed_up.split("Customer activity", 1)[1]
-    assert "placed" in activity_after
-    assert "Paid $20.00 toward order" in activity_after
-    assert "collected" in activity_after
+    after = followed_up.section("Customer activity").items
+    assert any("placed" in record for record in after)
+    assert any("Paid $20.00 toward order" in record for record in after)
+    assert any("collected" in record for record in after)
 
     logout(client)
     avril_again = login(client, "avrilUsername", "AvrilPassword")
     assert "not been collected within seven days" not in avril_again
     assert "You currently owe $74.98." in avril_again
     finished = page(client.get(order_path))
-    assert "Status</dt><dd>collected</dd>" in finished
+    assert finished.value("Status") == "collected"
     assert "Mark collected" not in finished

@@ -49,7 +49,7 @@ class Plant(Base):
             "image_filename <> ''",
             name="ck_plants_image",
         ),
-        CheckConstraint("btrim(plant_name) <> ''", name="ck_plants_name"),
+        CheckConstraint("trim(plant_name) <> ''", name="ck_plants_name"),
     )
 
     # Single-table inheritance: every plant type is one row in plants.

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -358,20 +358,12 @@ class NurserySystem:
         :return (list[Payment]): Payments from first to last
         """
         payments = self.__payment_history.get_order_payments(order)
-        recorded = {
-            payment_id: index
-            for index, payment_id in enumerate(
-                self.__session.scalars(
-                    select(Payment._payment_id)
-                    .where(Payment._order_id == order.order_id)
-                    .order_by(text("ctid"))
-                )
-            )
-        }
+        # The date has no time on it, so recorded_at (when the payment was
+        # entered) decides between payments made on the same day.
         payments.sort(
             key=lambda payment: (
                 self.__parse_date(payment.payment_date),
-                recorded.get(payment.payment_id, 0),
+                payment.recorded_at,
             )
         )
         return payments

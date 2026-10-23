@@ -2,7 +2,14 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -69,6 +76,12 @@ class Payment(Base):
     )
     _payment_date: Mapped[str] = mapped_column(
         "payment_date", String(10), nullable=False
+    )
+    # payment_date is a day with no time, so two payments on one day cannot be
+    # told apart by it. This is when the payment was entered, so receipts can
+    # list payments in the order they happened.
+    _recorded_at: Mapped[datetime] = mapped_column(
+        "recorded_at", DateTime, nullable=False
     )
     _expiry_date: Mapped[Optional[str]] = mapped_column(
         "expiry_date", String(20), nullable=True
@@ -137,6 +150,7 @@ class Payment(Base):
         if payment_date is None:
             payment_date = date.today().strftime("%d-%m-%Y")
         self._payment_date = self.__validate_payment_date(payment_date)
+        self._recorded_at = datetime.now()
 
     # ---------- Getters and Setters ----------
     # A recorded payment is a snapshot. ID, customer, order, amount, card
@@ -187,6 +201,15 @@ class Payment(Base):
         :return (str): The date of the payment
         """
         return self._payment_date
+
+    @property
+    def recorded_at(self) -> datetime:
+        """
+        Get when the payment was entered into the system
+
+        :return (datetime): The date and time the payment was entered
+        """
+        return self._recorded_at
 
     @property
     def card_number(self) -> str:
