@@ -149,6 +149,24 @@ def test_community_order_must_be_paid_before_collection() -> None:
     assert order.order_status == "pending"
 
 
+def test_an_order_says_whether_it_can_be_collected() -> None:
+    """
+    Only a pending order can be collected. A community customer has to have
+    paid in full first, and staff do not.
+    """
+    community = Order(community_customer(), [(rose(), 1)])
+    assert community.can_be_collected() is False
+    community.record_payment(community.order_total)
+    assert community.can_be_collected() is True
+    community.collect_order()
+    assert community.can_be_collected() is False
+
+    staff = Order(staff_customer(), [(rose(), 1)])
+    assert staff.can_be_collected() is True
+    staff.cancel_order()
+    assert staff.can_be_collected() is False
+
+
 def test_staff_can_collect_while_owing() -> None:
     """Staff can collect an order before it is paid."""
     order = Order(staff_customer(), [(rose(), 1)])

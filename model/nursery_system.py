@@ -1230,6 +1230,23 @@ class NurserySystem:
         payments = self.__payment_history.get_payments_between(start, end)
         return sum((p.amount_charged() for p in payments), ZERO)
 
+    def nursery_counts(self) -> dict[str, int]:
+        """
+        Count the plants, customers, orders, and payments, for the dashboard
+
+        :return (dict[str, int]): The counts, keyed by plants, customers,
+            orders, and payments
+        :raises NotAuthorisedError: If nobody is logged in, or the user is a
+            customer
+        """
+        self.__require_team()
+        return {
+            "plants": self.__catalog.count(),
+            "customers": self.__directory.count(),
+            "orders": self.__history.count(),
+            "payments": self.__payment_history.count(),
+        }
+
     # ---------- String Method ----------
 
     def __str__(self) -> str:

@@ -19,13 +19,14 @@ def home() -> str:
         return render_template("login.html")
     if is_team():
         follow_up = system().orders_uncollected_for_seven_days()
+        counts = system().nursery_counts()
         return render_template(
             "dashboard.html",
             follow_up=follow_up,
-            plant_count=system().catalog.count(),
-            customer_count=system().directory.count(),
-            order_count=system().history.count(),
-            payment_count=system().payment_history.count(),
+            plant_count=counts["plants"],
+            customer_count=counts["customers"],
+            order_count=counts["orders"],
+            payment_count=counts["payments"],
         )
     customer = system().current_user.customer
     orders = system().get_customer_order_history(customer)

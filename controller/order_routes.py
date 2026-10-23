@@ -169,17 +169,16 @@ def order_detail(order_id: uuid.UUID) -> str:
     except RULE_ERRORS as error:
         return explain(error)
     pending = order.order_status == "pending"
-    # Community customers have to pay an order off before it can be collected.
-    # Staff and students can collect while they still owe. The button stays
-    # visible either way; collect_order() refuses the ones that are not ready.
-    collect_allowed = order.customer.can_collect_order(order.remaining_balance)
+    # The button stays visible either way; collect_order() refuses the ones
+    # that are not ready. A pending order that cannot be collected yet is
+    # waiting on payment.
     return render_template(
         "order_detail.html",
         order=order,
         invoice=invoice,
         payments=payments,
         needs_follow_up=order.is_uncollected_too_long(),
-        awaiting_payment=pending and not collect_allowed,
+        awaiting_payment=pending and not order.can_be_collected(),
         can_pay=order.remaining_balance > 0,
     )
 

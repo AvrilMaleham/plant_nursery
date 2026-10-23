@@ -146,7 +146,7 @@ A subclass does not define `__init__` when it would only pass the same arguments
 
 ### Order Rules are in the Customer Class, not the Order Class
 
-`Order` should not contain `if customer_type() == "staff"`. The rule belongs to the customer, and the three types do not share one rule. `NurserySystem.place_order()` prices the order first, then asks `customer.can_place_order(pending_count, order_total)`. The pending count comes from `OrderHistory`, because a customer does not store their own orders. The order total lets staff and students be refused when this order would take them over $100, and community customers ignore it. If the answer is no, the system raises `OrderNotAllowedError`. `Order.collect_order()` asks `customer.can_collect_order(remaining_balance)` and raises `OrderCannotBeCollectedError` when the answer is no. Adding another customer type would mean a new subclass, not a new branch inside `Order`.
+`Order.can_be_collected()` is true for a pending order whose customer may collect, and both `collect_order()` and the order page use it, so the page never repeats the rule. `Order` should not contain `if customer_type() == "staff"`. The rule belongs to the customer, and the three types do not share one rule. `NurserySystem.place_order()` prices the order first, then asks `customer.can_place_order(pending_count, order_total)`. The pending count comes from `OrderHistory`, because a customer does not store their own orders. The order total lets staff and students be refused when this order would take them over $100, and community customers ignore it. If the answer is no, the system raises `OrderNotAllowedError`. `Order.collect_order()` asks `customer.can_collect_order(remaining_balance)` and raises `OrderCannotBeCollectedError` when the answer is no. Adding another customer type would mean a new subclass, not a new branch inside `Order`.
 
 ### The Same Plant Can Only Appear Once in an Order
 
@@ -169,7 +169,7 @@ Plants, customers, orders, order items, payments, and users are stored in Postgr
 - A plant's order history, a customer's orders, an order's payments, and a customer's payments each come back already filtered and sorted by the database.
 - The most and least ordered plants come from one grouped sum of the order item quantities, leaving out cancelled orders.
 - The pending-order count, finding an order, payment, plant, or customer by ID, and the "is this plant or customer on an order" checks before a removal are single queries (count, `session.get`, exists). The customer-type filter and "plants in stock" are `WHERE` clauses.
-- The dashboard totals are `COUNT(*)` queries.
+- The dashboard totals are `COUNT(*)` queries, read through `NurserySystem.nursery_counts()`, which only the team may call.
 - The team payments page asks for every payment in one query, and loads each payment's customer and order with two more (`selectinload`), so it is three queries however many customers there are. It used to run one query per customer, and then one more for each row's customer and order.
 
 This is tidying up lookups that read a whole table to find one row. It is not tuning for scale. There is no caching or paging, and the other list pages (for example the orders list, which loads each row's customer on its own) are left as they are, because the nursery's data is small.

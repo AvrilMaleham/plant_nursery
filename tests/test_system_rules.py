@@ -333,7 +333,22 @@ TEAM_ONLY_ACTIONS: dict[str, Callable[[SimpleNamespace], object]] = {
     "most_ordered_plants": lambda w: w.system.most_ordered_plants(),
     "least_ordered_plants": lambda w: w.system.least_ordered_plants(),
     "revenue": lambda w: w.system.revenue("day", day()),
+    "nursery_counts": lambda w: w.system.nursery_counts(),
 }
+
+
+def test_the_team_gets_the_dashboard_counts(world: SimpleNamespace) -> None:
+    """The counts match what is stored, and nobody signed out may read them."""
+    system = world.system
+    assert system.nursery_counts() == {
+        "plants": len(system.catalog.plant_list),
+        "customers": len(system.directory.customer_list),
+        "orders": len(system.history.order_list),
+        "payments": len(system.payment_history.payment_list),
+    }
+    system.logout()
+    with pytest.raises(NotAuthorisedError, match="log in"):
+        system.nursery_counts()
 
 
 @pytest.mark.parametrize("action", TEAM_ONLY_ACTIONS)

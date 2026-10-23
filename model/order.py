@@ -361,6 +361,21 @@ class Order(Base):
         current = today or date.today()
         return (current - self.order_date).days >= UNCOLLECTED_AFTER_DAYS
 
+    def can_be_collected(self) -> bool:
+        """
+        Say whether this order could be collected now
+
+        Only a pending order can be collected. The customer's type then
+        decides whether they may collect while still owing, so community
+        customers have to pay in full first.
+
+        :return (bool): True if collect_order() would accept it
+        """
+        return (
+            self._order_status == "pending"
+            and self.customer.can_collect_order(self.remaining_balance)
+        )
+
     def collect_order(
         self, collected_date: Optional[DateInput] = None
     ) -> None:
@@ -380,10 +395,9 @@ class Order(Base):
         if self._order_status == "cancelled":
             raise OrderCannotBeCollectedError(
                 "Unable to collect cancelled order")
-        # Pending is the only status that can move to collected. Whether this
-        # customer may collect while still owing is answered by the customer
-        # subclass.
-        if not self.customer.can_collect_order(self.remaining_balance):
+        # The order is pending, so what is left is whether this customer may
+        # collect while still owing.
+        if not self.can_be_collected():
             raise OrderCannotBeCollectedError(
                 "Community customers must pay an order in full "
                 "before it can be collected"
