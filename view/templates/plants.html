@@ -20,11 +20,13 @@
       </select>
     </label>
     <fieldset>
-      <legend>Price</legend>
-      <label><input type="radio" name="price_band" value="" {% if not filters.price_band %}checked{% endif %}> Any</label>
-      <label><input type="radio" name="price_band" value="under-10" {% if filters.price_band == 'under-10' %}checked{% endif %}> Under $10</label>
-      <label><input type="radio" name="price_band" value="10-30" {% if filters.price_band == '10-30' %}checked{% endif %}> $10 to $30</label>
-      <label><input type="radio" name="price_band" value="over-30" {% if filters.price_band == 'over-30' %}checked{% endif %}> Over $30</label>
+      <legend>Price (leave a box blank for no limit)</legend>
+      <label>From $
+        <input name="min_price" type="number" min="0" step="0.01" inputmode="decimal" value="{{ filters.min_price }}" placeholder="No minimum">
+      </label>
+      <label>To $
+        <input name="max_price" type="number" min="0" step="0.01" inputmode="decimal" value="{{ filters.max_price }}" placeholder="No maximum">
+      </label>
     </fieldset>
     <div class="filter-actions">
       <label class="check">

@@ -95,14 +95,14 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     assert "Out of stock" in catalog
     assert "Cactus" in catalog
 
-    # Name, type, price band, and stock together. Tomato is $4.50.
+    # Name, type, price range, and stock together. Tomato is $4.50.
     # Rose is too expensive, fern has the wrong name, and cactus is sold out.
     found = page(client.get(
         "/plants",
         query_string={
             "name": "tom",
             "plant_type": "vegetable seedlings",
-            "price_band": "under-10",
+            "max_price": "10",
             "in_stock": "on",
         },
     ))

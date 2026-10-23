@@ -213,3 +213,52 @@ def test_the_payment_form_refuses_junk_cards_and_keeps_four_digits(
         ).mappings().all()
     assert [row["card_last4"] for row in saved] == ["4444"]
     assert "1111222233334444" not in str(list(saved[0].values()))
+
+
+def test_the_price_search_takes_any_minimum_and_maximum(
+    client: FlaskClient,
+) -> None:
+    """
+    The search page has two optional price boxes. Either, both, or neither
+    can be filled in, a plant on a limit is found, and a box that is not a
+    price, or a range that runs backwards, is refused with a reason.
+    """
+    with session_scope() as session:
+        system = NurserySystem(session)
+        system.add_user("teamUsername", "TeamPassword", "team")
+        system.login("teamUsername", "TeamPassword")
+        for name, price in (("Cheap", 5), ("Ten", 10), ("Mid", 20)):
+            system.add_plant(Perennial(name, price, 5, f"{name}.png"))
+        system.add_plant(TreeAndShrub("Dear", 30, 5, "dear.png"))
+        system.add_plant(TreeAndShrub("Dearer", 45.5, 5, "dearer.png"))
+    login(client, "teamUsername", "TeamPassword")
+
+    def search(**boxes: str) -> list[str]:
+        shown = page(client.get("/plants", query_string=boxes))
+        found = {row[0] for row in shown.section("").rows}
+        return [
+            name
+            for name in ("Cheap", "Ten", "Mid", "Dear", "Dearer")
+            if name in found
+        ]
+
+    assert search() == ["Cheap", "Ten", "Mid", "Dear", "Dearer"]
+    assert search(min_price="", max_price="") == search()
+    assert search(max_price="10") == ["Cheap", "Ten"]
+    assert search(min_price="30") == ["Dear", "Dearer"]
+    assert search(min_price="10", max_price="30") == ["Ten", "Mid", "Dear"]
+    assert search(min_price="7.25", max_price="45.50") == [
+        "Ten", "Mid", "Dear", "Dearer",
+    ]
+
+    for boxes, reason in (
+        ({"min_price": "cheap"}, "Minimum price must be a number"),
+        ({"max_price": "-5"}, "Maximum price cannot be below $0"),
+        (
+            {"min_price": "30", "max_price": "10"},
+            "Minimum price cannot be above maximum price",
+        ),
+    ):
+        refused = page(client.get("/plants", query_string=boxes))
+        assert reason in refused, boxes
+        assert "No plants match that search." in refused

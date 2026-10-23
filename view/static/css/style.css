@@ -293,3 +293,8 @@ a { color: var(--leaf); }
   body, .paper, table { background: white; }
   main { max-width: none; }
 }
+
+.filters input[type="number"] {
+  width: 8rem;
+  min-width: 0;
+}

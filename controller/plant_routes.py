@@ -1,7 +1,6 @@
 """Plant search, detail, and the team's catalog changes."""
 
 import uuid
-from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -17,7 +16,13 @@ from controller.blueprint import (
     system,
 )
 from model.exceptions import NotAuthorisedError
-from controller.parsing import read_int, read_money, required_text, text
+from controller.parsing import (
+    read_int,
+    read_money,
+    read_optional_money,
+    required_text,
+    text,
+)
 from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
 
 IMAGE_DIR = Path(__file__).resolve().parents[1] / "view" / "static" / "images"
@@ -93,33 +98,27 @@ def search_filters() -> dict[str, object]:
     """
     Read the plant search form.
 
-    Brent asks for one price range, such as under $10 or between $10 and
-    $30. Under $10 stops just below $10, and over $30 starts just above
-    $30, so a plant priced on a boundary stays in one band. The model
-    includes its maximum.
+    Brent asks for searches such as everything under $10, or between $10 and
+    $30. The two price boxes are each optional, so a person can give a
+    minimum, a maximum, both, or neither. The model includes both ends, so a
+    plant priced exactly on a limit is found.
 
     :return (dict[str, object]): The values to show again, and the model
         filters
+    :raises ValueError: If a price is not a number, or is below zero
     """
-    band = text(request.args.get("price_band"))
-    min_price = None
-    max_price = None
-    if band == "under-10":
-        max_price = Decimal("9.99")
-    elif band == "10-30":
-        min_price, max_price = Decimal("10.00"), Decimal("30.00")
-    elif band == "over-30":
-        min_price = Decimal("30.01")
-    else:
-        band = ""
-    plant_type = text(request.args.get("plant_type")) or None
     return {
         "name": text(request.args.get("name")),
-        "plant_type": plant_type,
-        "price_band": band,
+        "plant_type": text(request.args.get("plant_type")) or None,
+        "min_price": text(request.args.get("min_price")),
+        "max_price": text(request.args.get("max_price")),
         "in_stock": request.args.get("in_stock") == "on",
-        "model_min": min_price,
-        "model_max": max_price,
+        "model_min": read_optional_money(
+            request.args.get("min_price"), "Minimum price"
+        ),
+        "model_max": read_optional_money(
+            request.args.get("max_price"), "Maximum price"
+        ),
     }
 
 
@@ -141,13 +140,15 @@ def plants() -> str:
             in_stock_only=bool(filters["in_stock"]),
         )
     except RULE_ERRORS as error:
+        # Show the search again as it was typed, with the reason.
         return render_template(
             "plants.html",
             plants=[],
             filters={
                 "name": text(request.args.get("name")),
                 "plant_type": text(request.args.get("plant_type")),
-                "price_band": text(request.args.get("price_band")),
+                "min_price": text(request.args.get("min_price")),
+                "max_price": text(request.args.get("max_price")),
                 "in_stock": request.args.get("in_stock") == "on",
             },
             plant_types=PLANT_TYPES,

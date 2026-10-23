@@ -47,6 +47,24 @@ def read_money(raw: Optional[str], label: str) -> Decimal:
     return to_money(required_text(raw, label), label)
 
 
+def read_optional_money(raw: Optional[str], label: str) -> Optional[Decimal]:
+    """
+    Read an amount of money from a form field that may be left blank.
+
+    :param raw (Optional[str]): The submitted text
+    :param label (str): The field name to use in the message
+    :return (Optional[Decimal]): The amount in whole cents, or None when the
+        field is blank
+    :raises ValueError: If the field is not a number, or is below zero
+    """
+    if not text(raw):
+        return None
+    amount = read_money(raw, label)
+    if amount < 0:
+        raise ValueError(f"{label} cannot be below $0")
+    return amount
+
+
 def read_int(raw: Optional[str], label: str) -> int:
     """
     Read a required whole number from a form field.

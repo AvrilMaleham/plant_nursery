@@ -7,10 +7,11 @@ what, the refusals when an order is placed, removing plants and customers,
 the price search, revenue periods, and receipts.
 """
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Callable
+from typing import Callable, Optional
 
 import pytest
 from sqlalchemy import text
@@ -823,7 +824,7 @@ def test_customer_details_can_change_but_keep_one_way_to_contact(
         nursery.update_customer(world.sam, "Samuel", "", "")
 
 
-# ---------- Searching and the price bands ----------
+# ---------- Searching and the price range ----------
 
 PRICES = [
     Decimal(price)
@@ -847,54 +848,82 @@ def priced_plants(system: NurserySystem) -> dict[Decimal, Plant]:
     }
 
 
-def band_limits(band: str) -> tuple[object, object]:
+def price_limits(**args: str) -> tuple[object, object]:
     """
-    Read the price limits the search form turns a band into.
+    Read the price limits the search form turns its two price boxes into.
 
-    :param band (str): under-10, 10-30, over-30, or something else
+    :param args (str): The min_price and max_price boxes, as typed
     :return (tuple[object, object]): The minimum and maximum price
     """
-    with app.test_request_context(f"/plants?price_band={band}"):
+    with app.test_request_context("/plants", query_string=args):
         filters = search_filters()
     return filters["model_min"], filters["model_max"]
 
 
-def test_each_price_band_turns_into_the_right_limits() -> None:
-    """The search form's bands become the limits Brent described."""
-    assert band_limits("under-10") == (None, Decimal("9.99"))
-    assert band_limits("10-30") == (Decimal("10.00"), Decimal("30.00"))
-    assert band_limits("over-30") == (Decimal("30.01"), None)
-    assert band_limits("") == (None, None)
-    assert band_limits("nonsense") == (None, None)
+def test_the_price_boxes_turn_into_limits() -> None:
+    """Either box, both, or neither can be filled in, and blank means none."""
+    assert price_limits(max_price="10") == (None, Decimal("10.00"))
+    assert price_limits(min_price="30") == (Decimal("30.00"), None)
+    assert price_limits(min_price="10", max_price="30.5") == (
+        Decimal("10.00"),
+        Decimal("30.50"),
+    )
+    assert price_limits() == (None, None)
+    assert price_limits(min_price="", max_price="  ") == (None, None)
+    assert price_limits(min_price=" 0 ") == (Decimal("0.00"), None)
 
 
 @pytest.mark.parametrize(
-    ("price", "band"),
+    ("args", "message"),
     [
-        (Decimal("0.01"), "under-10"),
-        (Decimal("9.99"), "under-10"),
-        (Decimal("10.00"), "10-30"),
-        (Decimal("10.01"), "10-30"),
-        (Decimal("29.99"), "10-30"),
-        (Decimal("30.00"), "10-30"),
-        (Decimal("30.01"), "over-30"),
-        (Decimal("100.00"), "over-30"),
+        ({"min_price": "cheap"}, "Minimum price must be a number"),
+        ({"max_price": "ten"}, "Maximum price must be a number"),
+        ({"min_price": "-1"}, "Minimum price cannot be below $0"),
+        ({"max_price": "-0.01"}, "Maximum price cannot be below $0"),
     ],
 )
-def test_a_price_on_a_boundary_is_in_exactly_one_band(
+def test_a_bad_price_box_is_refused_with_a_reason(
+    args: dict[str, str], message: str
+) -> None:
+    """Text that is not a price, or a negative price, is not ignored."""
+    with pytest.raises(ValueError, match=re.escape(message)):
+        price_limits(**args)
+
+
+@pytest.mark.parametrize(
+    ("low", "high", "expected"),
+    [
+        (None, "10", ["0.01", "9.99", "10.00"]),
+        (None, "9.99", ["0.01", "9.99"]),
+        ("30", None, ["30.00", "30.01", "100.00"]),
+        ("30.01", None, ["30.01", "100.00"]),
+        ("10", "30", ["10.00", "10.01", "29.99", "30.00"]),
+        ("10.01", "29.99", ["10.01", "29.99"]),
+        ("20", "20", []),
+        (None, None, [str(price) for price in PRICES]),
+    ],
+)
+def test_any_minimum_and_maximum_find_the_prices_between(
     system: NurserySystem,
     priced_plants: dict[Decimal, Plant],
-    price: Decimal,
-    band: str,
+    low: Optional[str],
+    high: Optional[str],
+    expected: list[str],
 ) -> None:
-    """$10.00 and $30.00 are in the middle band, and never in two bands."""
-    found_in = []
-    for name in ("under-10", "10-30", "over-30"):
-        low, high = band_limits(name)
-        matches = system.search_plants(min_price=low, max_price=high)
-        if priced_plants[price] in matches:
-            found_in.append(name)
-    assert found_in == [band]
+    """
+    Both limits are included, so a plant priced on a limit is found, and
+    either limit can be left out.
+    """
+    args = {}
+    if low is not None:
+        args["min_price"] = low
+    if high is not None:
+        args["max_price"] = high
+    min_price, max_price = price_limits(**args)
+    found = system.search_plants(min_price=min_price, max_price=max_price)
+    assert sorted(plant.plant_price for plant in found) == sorted(
+        Decimal(price) for price in expected
+    )
 
 
 def test_price_limits_include_the_price_they_name(
