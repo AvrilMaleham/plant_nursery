@@ -36,15 +36,21 @@
   </div>
 
   {% if is_team %}
-    <h2>Update price and stock</h2>
-    <form method="post" action="{{ url_for('nursery.update_plant', plant_id=plant.plant_id) }}">
+    <h2>Update price</h2>
+    <form method="post" action="{{ url_for('nursery.update_plant_price', plant_id=plant.plant_id) }}">
       <label>Price
-        <input name="price" value="{{ "%.2f"|format(plant.plant_price) }}" required>
+        <input name="price" value="{{ "%.2f"|format(plant.plant_price) }}" inputmode="decimal" required>
       </label>
-      <label>Stock
-        <input name="stock" value="{{ plant.plant_stock }}" required>
+      <button type="submit">Save price</button>
+    </form>
+
+    <h2>Update stock</h2>
+    <form method="post" action="{{ url_for('nursery.update_plant_stock', plant_id=plant.plant_id) }}">
+      <label>New stock ({{ plant.sale_unit() }}s on hand)
+        <input name="stock" value="{% if plant.plant_stock > 0 %}{{ plant.plant_stock }}{% endif %}" inputmode="numeric" placeholder="e.g. 20" required>
       </label>
-      <button type="submit">Save</button>
+      <p class="hint">Use this when a new batch comes out of the greenhouse. It replaces the current stock and must be at least 1.</p>
+      <button type="submit">Save stock</button>
     </form>
   {% endif %}
 {% endblock %}

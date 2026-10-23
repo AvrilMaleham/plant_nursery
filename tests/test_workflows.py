@@ -306,6 +306,12 @@ def test_team_sells_at_the_counter_and_collects(client: FlaskClient) -> None:
     with session_scope() as session:
         system = NurserySystem(session)
         system.add_user("teamUsername", "TeamPassword", "team")
+        system.login("teamUsername", "TeamPassword")
+        # Already sold out. Stock reaches 0 only through reduce_stock.
+        cactus = PotPlant("Cactus", 6.00, 1, "cactus.png", "small")
+        cactus.reduce_stock(1)
+        system.add_plant(cactus)
+        cactus_id = str(cactus.plant_id)
 
     before = {path.name for path in IMAGES.iterdir()}
     try:
@@ -338,14 +344,57 @@ def test_team_sells_at_the_counter_and_collects(client: FlaskClient) -> None:
         assert stored_photo.status_code == 200
         assert stored_photo.data == PHOTO
 
+        # Price and stock have their own forms, so one change never depends
+        # on the other.
+        repriced = client.post(
+            f"{plant_path}/price",
+            data={"price": "16.00"},
+            follow_redirects=True,
+        )
+        repriced_html = page(repriced)
+        assert "Camellia price updated." in repriced_html
+        assert "$16.00 per plant" in repriced_html
+        shows_stock(repriced_html, 10)
+
         updated = client.post(
-            f"{plant_path}/update",
-            data={"price": "16.00", "stock": "20"},
+            f"{plant_path}/stock",
+            data={"stock": "20"},
             follow_redirects=True,
         )
         updated_html = page(updated)
-        assert "Camellia price and stock updated." in updated_html
+        assert "Camellia stock updated." in updated_html
         shows_stock(updated_html, 20)
+
+        # A sold-out plant can be repriced without being restocked, and a
+        # new batch can then be added. Stock still cannot be set to 0.
+        cactus_path = f"/plants/{cactus_id}"
+        assert "Out of stock" in page(client.get(cactus_path))
+        cactus_repriced = page(client.post(
+            f"{cactus_path}/price",
+            data={"price": "7.50"},
+            follow_redirects=True,
+        ))
+        assert "Cactus price updated." in cactus_repriced
+        assert "$7.50 per pot" in cactus_repriced
+        assert "Out of stock" in cactus_repriced
+
+        zero_stock = client.post(
+            f"{cactus_path}/stock",
+            data={"stock": "0"},
+            headers={"Referer": f"http://localhost{cactus_path}"},
+            follow_redirects=True,
+        )
+        assert "Plant stock must be greater than 0" in page(zero_stock)
+        assert "Out of stock" in page(client.get(cactus_path))
+
+        cactus_restocked = page(client.post(
+            f"{cactus_path}/stock",
+            data={"stock": "12"},
+            follow_redirects=True,
+        ))
+        assert "Cactus stock updated." in cactus_restocked
+        shows_stock(cactus_restocked, 12)
+        assert "$7.50 per pot" in cactus_restocked
 
         created = client.post(
             "/customers/new",

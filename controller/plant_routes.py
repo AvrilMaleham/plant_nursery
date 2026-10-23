@@ -199,13 +199,14 @@ def plant_detail(plant_id: uuid.UUID) -> str:
     return render_template("plant_detail.html", plant=plant)
 
 
-@nursery_bp.route("/plants/<uuid:plant_id>/update", methods=["POST"])
+@nursery_bp.route("/plants/<uuid:plant_id>/price", methods=["POST"])
 @signed_in
-def update_plant(plant_id: uuid.UUID) -> str:
+def update_plant_price(plant_id: uuid.UUID) -> str:
     """
-    Change a plant's price and stock.
+    Change a plant's price. Stock is not touched, so a sold-out plant can
+    still be repriced.
 
-    :param plant_id (uuid.UUID): The plant to update
+    :param plant_id (uuid.UUID): The plant to reprice
     :return (str): The plant page, with the model's confirmation or refusal
     """
     try:
@@ -213,12 +214,30 @@ def update_plant(plant_id: uuid.UUID) -> str:
         system().update_plant_price(
             plant, read_float(request.form.get("price"), "Price")
         )
+    except RULE_ERRORS as error:
+        return explain(error)
+    flash(f"{plant.plant_name} price updated.", "success")
+    return redirect(url_for("nursery.plant_detail", plant_id=plant.plant_id))
+
+
+@nursery_bp.route("/plants/<uuid:plant_id>/stock", methods=["POST"])
+@signed_in
+def update_plant_stock(plant_id: uuid.UUID) -> str:
+    """
+    Change a plant's stock, for example when a new batch comes out of the
+    greenhouse. Price is not touched.
+
+    :param plant_id (uuid.UUID): The plant to restock
+    :return (str): The plant page, with the model's confirmation or refusal
+    """
+    try:
+        plant = system().find_plant(plant_id)
         system().update_plant_stock(
             plant, read_int(request.form.get("stock"), "Stock")
         )
     except RULE_ERRORS as error:
         return explain(error)
-    flash(f"{plant.plant_name} price and stock updated.", "success")
+    flash(f"{plant.plant_name} stock updated.", "success")
     return redirect(url_for("nursery.plant_detail", plant_id=plant.plant_id))
 
 
