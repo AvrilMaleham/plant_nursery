@@ -41,6 +41,16 @@ Open http://127.0.0.1:5000. These are the sample logins:
 | Jane, student | janeUsername | JanePassword |
 | Sam, community | samUsername | SamPassword |
 
+## Running the tests
+
+From this folder, with the same `DATABASE_URL` used to start the application:
+
+```bash
+DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" pytest
+```
+
+The unit tests check the business rules on their own and do not open the database. The integration tests sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. They use a separate database named `plant_nursery_test` on that same server, so the sample data in `plant_nursery` is left as it is.
+
 ## Design Decisions
 
 ### Separation of Concerns
