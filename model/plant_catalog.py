@@ -1,4 +1,7 @@
-from sqlalchemy import select
+import uuid
+from typing import Optional
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .plant import Plant
@@ -55,6 +58,27 @@ class PlantCatalog:
 
         self.__session.add(plant)
 
+    def find_plant(self, plant_id: uuid.UUID) -> Optional[Plant]:
+        """
+        Look a plant up by its ID
+
+        :param plant_id (uuid.UUID): The ID to look for
+        :return (Optional[Plant]): The plant, or None if there is none
+        """
+        # Search is by ID because plant names are not unique (two batches can
+        # share a name).
+        return self.__session.get(Plant, plant_id)
+
+    def count(self) -> int:
+        """
+        Count the plants
+
+        :return (int): How many plants there are
+        """
+        return self.__session.scalar(
+            select(func.count()).select_from(Plant)
+        ) or 0
+
     def get_available_plants(self) -> list[Plant]:
         """
         Return plants that currently have stock available to sell
@@ -62,14 +86,13 @@ class PlantCatalog:
         :return (list[Plant]): A list of Plant objects with current stock
             greater than 0
         """
-        available_plants = []
         # Available means currently in stock, not just present in the catalog.
         # Sold out plants (stock of 0 after an order) stay in the catalog but
         # are left out here.
-        for plant in self.plant_list:
-            if plant.plant_stock > 0:
-                available_plants.append(plant)
-        return available_plants
+        plants = self.__session.scalars(
+            select(Plant).where(Plant._plant_stock > 0)
+        ).all()
+        return list(plants)
 
     # display_all_plants exists alongside the plant_list getter so printing
     # stays inside the catalog. A caller can use one method instead of

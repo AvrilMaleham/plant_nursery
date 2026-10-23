@@ -1,4 +1,7 @@
-from sqlalchemy import select
+import uuid
+from typing import Optional
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .customer import Customer
@@ -55,6 +58,26 @@ class CustomerDirectory:
 
         self.__session.add(customer)
 
+    def find_customer(self, customer_id: uuid.UUID) -> Optional[Customer]:
+        """
+        Look a customer up by their ID
+
+        :param customer_id (uuid.UUID): The ID to look for
+        :return (Optional[Customer]): The customer, or None if there is none
+        """
+        # Search is by ID because customer names are not unique.
+        return self.__session.get(Customer, customer_id)
+
+    def count(self) -> int:
+        """
+        Count the customers
+
+        :return (int): How many customers there are
+        """
+        return self.__session.scalar(
+            select(func.count()).select_from(Customer)
+        ) or 0
+
     def get_customers_by_type(self, customer_type: str) -> list[Customer]:
         """
         Return customers of one type
@@ -63,13 +86,12 @@ class CustomerDirectory:
             staff, student, or community
         :return (list[Customer]): A list of matching Customer objects
         """
-        matching_customers = []
-        # customer_type() is supplied by each subclass, so the directory does
-        # not need to know StaffCustomer from CommunityCustomer.
-        for customer in self.customer_list:
-            if customer.customer_type() == customer_type:
-                matching_customers.append(customer)
-        return matching_customers
+        # The type is stored in the customer_type column, which each subclass
+        # fills in, so the database can pick the rows.
+        customers = self.__session.scalars(
+            select(Customer).where(Customer.kind == customer_type)
+        ).all()
+        return list(customers)
 
     # display_all_customers exists alongside the customer_list getter so
     # printing stays inside the directory. A caller can use one method

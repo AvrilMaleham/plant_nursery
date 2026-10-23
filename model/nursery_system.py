@@ -485,12 +485,10 @@ class NurserySystem:
         :raises ValueError: If no plant with that ID is found
         """
         self.__require_login()
-        for plant in self.__catalog.plant_list:
-            # Search is by ID because plant names are not unique (two batches
-            # can share a name).
-            if plant.plant_id == plant_id:
-                return plant
-        raise ValueError(f"No plant found with ID {plant_id}")
+        plant = self.__catalog.find_plant(plant_id)
+        if plant is None:
+            raise ValueError(f"No plant found with ID {plant_id}")
+        return plant
 
     def display_all_plants(self) -> None:
         """
@@ -615,11 +613,7 @@ class NurserySystem:
             raise ValueError(
                 "Customer type must be staff, student, or community"
             )
-        return [
-            customer
-            for customer in self.__directory.customer_list
-            if customer.customer_type() == customer_type
-        ]
+        return self.__directory.get_customers_by_type(customer_type)
 
     def find_customer(self, customer_id: uuid.UUID) -> Customer:
         """
@@ -631,11 +625,9 @@ class NurserySystem:
             customer
         :raises ValueError: If no customer with that ID is found
         """
-        for customer in self.__directory.customer_list:
-            if customer.cust_id == customer_id:
-                self.__require_self_or_team(customer)
-                return customer
-        raise ValueError(f"No customer found with ID {customer_id}")
+        customer = self.__lookup_customer(customer_id)
+        self.__require_self_or_team(customer)
+        return customer
 
     def __lookup_customer(self, customer_id: uuid.UUID) -> Customer:
         """
@@ -645,11 +637,10 @@ class NurserySystem:
         :return (Customer): The matching Customer object
         :raises ValueError: If no customer with that ID is found
         """
-        for customer in self.__directory.customer_list:
-            # Search is by ID because customer names are not unique.
-            if customer.cust_id == customer_id:
-                return customer
-        raise ValueError(f"No customer found with ID {customer_id}")
+        customer = self.__directory.find_customer(customer_id)
+        if customer is None:
+            raise ValueError(f"No customer found with ID {customer_id}")
+        return customer
 
     def __require_registered_customer(self, customer: Customer) -> None:
         """
@@ -754,12 +745,7 @@ class NurserySystem:
         seen_plant_ids = []
         items_subtotal = ZERO
         for plant, quantity in items:
-            plant_found = False
-            for existing_plant in self.__catalog.plant_list:
-                if existing_plant.plant_id == plant.plant_id:
-                    plant_found = True
-                    break
-            if not plant_found:
+            if self.__catalog.find_plant(plant.plant_id) is None:
                 raise ValueError("Plant is not registered in the system")
             if plant.plant_id in seen_plant_ids:
                 raise ValueError("Each plant can only appear once on an order")
@@ -981,6 +967,16 @@ class NurserySystem:
             raise ValueError(f"No payment found with ID {payment_id}")
         self.__require_self_or_team(payment.customer)
         return payment
+
+    def get_all_payments(self) -> list[Payment]:
+        """
+        Retrieve every payment on record, earliest first
+
+        :return (list[Payment]): Every payment
+        :raises NotAuthorisedError: If the user is not the nursery team
+        """
+        self.__require_team()
+        return self.__payment_history.get_all_payments()
 
     def get_customer_payments(self, customer: Customer) -> list[Payment]:
         """
@@ -1245,9 +1241,9 @@ class NurserySystem:
         return (
             "Nursery System: {} plants, {} customers, {} orders, {} payments"
             .format(
-                len(self.__catalog.plant_list),
-                len(self.__directory.customer_list),
-                len(self.__history.order_list),
-                len(self.__payment_history.payment_list),
+                self.__catalog.count(),
+                self.__directory.count(),
+                self.__history.count(),
+                self.__payment_history.count(),
             )
         )

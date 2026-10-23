@@ -69,6 +69,16 @@ class OrderHistory:
         """
         return self.__session.get(Order, order_id)
 
+    def count(self) -> int:
+        """
+        Count the orders
+
+        :return (int): How many orders there are
+        """
+        return self.__session.scalar(
+            select(func.count()).select_from(Order)
+        ) or 0
+
     def get_pending_order_count(self, customer: Customer) -> int:
         """
         Count how many pending orders a customer currently has

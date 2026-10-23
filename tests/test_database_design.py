@@ -8,6 +8,7 @@ is done by the database. They use the throwaway in-memory database, so they
 need no PostgreSQL server.
 """
 
+import uuid
 from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -18,12 +19,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from model.customer import CommunityCustomer, Customer, StaffCustomer
+from model.customer_directory import CustomerDirectory
 from model.order import Order
 from model.order_history import OrderHistory
 from model.order_item import OrderItem
 from model.payment import DebitCardPayment
 from model.payment_history import PaymentHistory
 from model.plant import TreeAndShrub
+from model.plant_catalog import PlantCatalog
 
 # ---------- Helpers ----------
 
@@ -422,6 +425,102 @@ def test_the_pending_count_is_counted_by_the_database(
 
     assert OrderHistory(memory_session).get_pending_order_count(customer) == 1
     assert "count(" in statements[-1].lower()
+
+
+def test_counts_are_counted_by_the_database(
+    memory_session: Session, statements: list[str]
+) -> None:
+    """The dashboard totals are COUNT queries, not a whole table loaded to
+    take its length."""
+    order = make_order(memory_session)
+    make_payment(memory_session, order, "10-10-2025")
+    memory_session.flush()
+
+    for counted, expected in (
+        (PlantCatalog(memory_session), 1),
+        (CustomerDirectory(memory_session), 1),
+        (OrderHistory(memory_session), 1),
+        (PaymentHistory(memory_session), 1),
+    ):
+        statements.clear()
+        assert counted.count() == expected
+        assert len(statements) == 1
+        assert "count(" in statements[0].lower()
+
+
+def test_plants_and_customers_are_found_by_id_without_loading_the_table(
+    memory_session: Session, statements: list[str]
+) -> None:
+    """Finding one plant or customer asks for that one row, and an unknown ID
+    gives None."""
+    order = make_order(memory_session)
+    plant = order.items[0].plant
+    memory_session.expunge_all()
+    memory_session.commit()
+    statements.clear()
+
+    found_plant = PlantCatalog(memory_session).find_plant(plant.plant_id)
+    found_customer = CustomerDirectory(memory_session).find_customer(
+        order.customer.cust_id
+    )
+
+    assert found_plant is not None and found_plant.plant_name == "Rose"
+    assert found_customer is not None and found_customer.cust_name == "Sam"
+    assert len(statements) == 2
+    assert all("WHERE" in statement for statement in statements)
+    assert PlantCatalog(memory_session).find_plant(uuid.uuid4()) is None
+    assert CustomerDirectory(memory_session).find_customer(
+        uuid.uuid4()
+    ) is None
+
+
+def test_customers_and_stocked_plants_are_picked_by_the_database(
+    memory_session: Session, statements: list[str]
+) -> None:
+    """The customer type and 'has stock' are WHERE clauses."""
+    make_order(memory_session)
+    staff = StaffCustomer("Avril", cust_email="avril@email.com")
+    sold_out = TreeAndShrub("Cactus", 6.00, 1, "cactus.png")
+    sold_out.reduce_stock(1)
+    memory_session.add_all([staff, sold_out])
+    memory_session.flush()
+    statements.clear()
+
+    staff_only = CustomerDirectory(memory_session).get_customers_by_type(
+        "staff"
+    )
+    in_stock = PlantCatalog(memory_session).get_available_plants()
+
+    assert staff_only == [staff]
+    assert [plant.plant_name for plant in in_stock] == ["Rose"]
+    assert "customer_type =" in statements[0]
+    assert "plant_stock >" in statements[1]
+
+
+def test_every_payment_loads_with_its_customer_and_order_in_three_queries(
+    memory_session: Session, statements: list[str]
+) -> None:
+    """The team payments page shows the customer and order on each row. For
+    five customers that is three queries, not eleven."""
+    plant = TreeAndShrub("Rose", 15.99, 50, "rose.png")
+    for number in range(5):
+        customer = StaffCustomer(
+            f"Person {number}", cust_email=f"p{number}@email.com"
+        )
+        order = make_order(memory_session, 1, None, customer, plant)
+        make_payment(memory_session, order, "10-10-2025")
+    memory_session.commit()
+    memory_session.expunge_all()
+    statements.clear()
+
+    payments = PaymentHistory(memory_session).get_all_payments()
+    shown = [
+        (payment.customer.cust_name, payment.order.order_number)
+        for payment in payments
+    ]
+
+    assert len(shown) == 5
+    assert len(statements) == 3
 
 
 def test_plants_and_customers_in_use_are_found_by_the_database(

@@ -273,9 +273,7 @@ def payments() -> str:
     """
     try:
         if is_team():
-            found = []
-            for customer in every_customer():
-                found.extend(system().get_customer_payments(customer))
+            found = system().get_all_payments()
         else:
             customer = system().current_user.customer
             found = system().get_customer_payments(customer)

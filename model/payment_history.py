@@ -2,8 +2,8 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
 
 from .customer import Customer
 from .order import Order
@@ -64,6 +64,36 @@ class PaymentHistory:
         :return (Optional[Payment]): The payment, or None if there is none
         """
         return self.__session.get(Payment, payment_id)
+
+    def count(self) -> int:
+        """
+        Count the payments
+
+        :return (int): How many payments there are
+        """
+        return self.__session.scalar(
+            select(func.count()).select_from(Payment)
+        ) or 0
+
+    def get_all_payments(self) -> list[Payment]:
+        """
+        Retrieve every payment, earliest first, with each one's customer and
+        order loaded along with it
+
+        :return (list[Payment]): Every payment
+        """
+        # A list of payments shows the customer and the order on every row.
+        # Loading them here, in two queries for the whole list, stops the page
+        # asking for them again one row at a time.
+        payments = self.__session.scalars(
+            select(Payment)
+            .options(
+                selectinload(Payment._customer),
+                selectinload(Payment._order),
+            )
+            .order_by(Payment._payment_date, Payment._created_at)
+        ).all()
+        return list(payments)
 
     def get_customer_payments(self, customer: Customer) -> list[Payment]:
         """

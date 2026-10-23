@@ -22,10 +22,10 @@ def home() -> str:
         return render_template(
             "dashboard.html",
             follow_up=follow_up,
-            plant_count=len(system().catalog.plant_list),
-            customer_count=len(system().directory.customer_list),
-            order_count=len(system().history.order_list),
-            payment_count=len(system().payment_history.payment_list),
+            plant_count=system().catalog.count(),
+            customer_count=system().directory.count(),
+            order_count=system().history.count(),
+            payment_count=system().payment_history.count(),
         )
     customer = system().current_user.customer
     orders = system().get_customer_order_history(customer)
