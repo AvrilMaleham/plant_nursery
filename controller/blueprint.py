@@ -7,6 +7,7 @@ from typing import Callable
 from flask import (
     Blueprint,
     Response,
+    current_app,
     flash,
     g,
     make_response,
@@ -271,6 +272,25 @@ def method_not_allowed(error: Exception) -> Response:
         "That cannot be done from here",
         "This address is for a button on a page, not for opening directly. "
         "Go back and use the button.",
+    )
+
+
+@nursery_bp.app_errorhandler(413)
+def request_too_large(error: Exception) -> Response:
+    """
+    Show a page for an upload that is bigger than the site accepts.
+
+    :param error (Exception): The request entity too large error from Flask
+    :return (Response): The error page
+    """
+    limit_mb = (current_app.config.get("MAX_CONTENT_LENGTH") or 0) // (
+        1024 * 1024
+    )
+    return error_page(
+        413,
+        "That file is too big",
+        f"The most the site accepts is {limit_mb} MB. Nothing was saved. "
+        "Go back and choose a smaller photo.",
     )
 
 

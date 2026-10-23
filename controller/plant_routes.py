@@ -3,6 +3,7 @@
 import uuid
 from decimal import Decimal
 from pathlib import Path
+from typing import Optional
 
 from flask import flash, g, redirect, render_template, request, url_for
 from werkzeug.utils import secure_filename
@@ -21,6 +22,14 @@ from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
 
 IMAGE_DIR = Path(__file__).resolve().parents[1] / "view" / "static" / "images"
 PHOTO_TYPES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+# What each kind of image file starts with, and the extensions that go with
+# it. A file name can say anything, but the first bytes say what the file is.
+IMAGE_EXTENSIONS = {
+    "png": {".png"},
+    "jpeg": {".jpg", ".jpeg"},
+    "gif": {".gif"},
+    "webp": {".webp"},
+}
 PLANT_TYPES = (
     TreeAndShrub.TYPE_NAME,
     Perennial.TYPE_NAME,
@@ -29,13 +38,33 @@ PLANT_TYPES = (
 )
 
 
+def image_kind(header: bytes) -> Optional[str]:
+    """
+    Say what kind of image a file is from its first bytes.
+
+    :param header (bytes): The first 12 bytes of the file
+    :return (Optional[str]): png, jpeg, gif, or webp, or None if the bytes
+        are none of those
+    """
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 def save_photo(upload: object) -> str:
     """
     Store an uploaded plant photo and return its file name.
 
     :param upload (object): The file field from the form
     :return (str): The stored file name
-    :raises ValueError: If the photo is missing or is not an image
+    :raises ValueError: If the photo is missing, is not an image, or is a
+        different kind of image from the one its file name says
     """
     filename = ""
     if upload is not None and getattr(upload, "filename", ""):
@@ -44,6 +73,15 @@ def save_photo(upload: object) -> str:
     if not filename or suffix not in PHOTO_TYPES:
         raise ValueError(
             "A plant photo is required, as a PNG, JPG, GIF, or WEBP file"
+        )
+    # The extension alone proves nothing. Read the start of the file, then
+    # put the read position back so the whole file is still saved.
+    header = upload.stream.read(12)
+    upload.stream.seek(0)
+    kind = image_kind(header)
+    if kind is None or suffix not in IMAGE_EXTENSIONS[kind]:
+        raise ValueError(
+            "That file is not a real PNG, JPG, GIF, or WEBP image"
         )
     stored = f"{uuid.uuid4().hex}{suffix}"
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)

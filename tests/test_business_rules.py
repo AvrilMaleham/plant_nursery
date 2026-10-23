@@ -337,10 +337,10 @@ def test_password_is_stored_as_a_hash() -> None:
     The typed password is checked against a hash, and the hash is not
     the password.
     """
-    user = User("team", "nursery", "team")
-    assert user.check_password("nursery") is True
+    user = User("team", "nursery-pass", "team")
+    assert user.check_password("nursery-pass") is True
     assert user.check_password("wrong") is False
-    assert user._password_hash != "nursery"
+    assert user._password_hash != "nursery-pass"
 
 
 def test_team_login_is_not_linked_to_a_customer() -> None:
@@ -348,14 +348,27 @@ def test_team_login_is_not_linked_to_a_customer() -> None:
     The shared team account has no customer, and a customer account must
     have one.
     """
-    team = User("team", "nursery", "team")
+    team = User("team", "nursery-pass", "team")
     assert team.role == "team"
     assert team.customer is None
 
     customer = staff_customer()
-    linked = User("avril", "avril", "customer", customer)
+    linked = User("avril", "avril-pass", "customer", customer)
     assert linked.role == "customer"
     assert linked.customer is customer
 
     with pytest.raises(ValueError):
-        User("extra", "extra", "customer")
+        User("extra", "extra-pass", "customer")
+
+
+def test_password_must_be_at_least_eight_characters() -> None:
+    """
+    A short password is refused with the length in the message, and exactly
+    eight characters is enough.
+    """
+    for short in ("", "abc", "1234567"):
+        with pytest.raises(ValueError):
+            User("team", short, "team")
+    with pytest.raises(ValueError, match="at least 8 characters"):
+        User("team", "1234567", "team")
+    assert User("team", "12345678", "team").check_password("12345678")

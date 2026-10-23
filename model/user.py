@@ -17,6 +17,9 @@ from .customer import Customer
 TEAM_ROLE = "team"
 CUSTOMER_ROLE = "customer"
 
+# The shortest password a new login may have.
+MIN_PASSWORD_LENGTH = 8
+
 
 class User(Base):
     """
@@ -81,6 +84,10 @@ class User(Base):
             raise ValueError("Username is required")
         if not password:
             raise ValueError("Password is required")
+        if len(password) < MIN_PASSWORD_LENGTH:
+            raise ValueError(
+                f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+            )
         if role not in (TEAM_ROLE, CUSTOMER_ROLE):
             raise ValueError("Role must be team or customer")
         if role == CUSTOMER_ROLE and customer is None:
