@@ -210,6 +210,14 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     assert "Outstanding" in invoice
     assert "$46.17" in invoice
     assert "pending" in invoice
+    # Each line shows its own bulk discount and cost, and the invoice names
+    # the order and the amount to pay.
+    assert "Order number" in invoice
+    assert "Bulk discount (10+)" in invoice
+    assert "-$5.40" in invoice
+    assert "Line cost" in invoice
+    assert "$48.60" in invoice
+    assert "Total to pay" in invoice
 
     shows_stock(page(client.get(f"/plants/{tomato_id}")), 38)
 
@@ -276,6 +284,12 @@ def test_customer_searches_orders_and_pays(client: FlaskClient) -> None:
     settled_html = page(settled)
     assert "debit card" in settled_html
     assert "Still to pay after this payment</dt><dd>$0.00</dd>" in settled_html
+
+    # Once the order is paid in full, a printed invoice still shows what the
+    # order came to.
+    paid_invoice = page(client.get(order_path))
+    assert "Total to pay</dt><dd class=\"grand\">$46.17</dd>" in paid_invoice
+    assert "Outstanding</dt><dd>$0.00</dd>" in paid_invoice
 
     payments = page(client.get("/payments"))
     assert "credit card" in payments

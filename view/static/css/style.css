@@ -253,8 +253,11 @@ dl.invoice-totals dt { white-space: nowrap; }
 
 dl.invoice-totals dd { margin: 0; text-align: right; }
 
-dl.invoice-totals dt:last-of-type,
-dl.invoice-totals dd:last-child { font-weight: 700; }
+dl.invoice-totals .grand {
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+  padding-top: 0.3rem;
+}
 
 .receipts { padding-left: 1.2rem; }
 

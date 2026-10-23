@@ -71,6 +71,8 @@ class Invoice:
         :param order (Order): The order to list
         """
         self.order_id = order.order_id
+        self.order_number = order.order_number
+        self.order_date = order.order_date
         self.customer_name = order.customer.cust_name
         self.customer_number = order.customer.customer_number
         self.lines: list[InvoiceLine] = []
@@ -124,10 +126,11 @@ class Invoice:
         """
         line_text = "; ".join(str(line) for line in self.lines)
         return (
-            "Invoice for order {}: Customer: {}, Customer number: {}, "
+            "Invoice for order {} ({}): Customer: {}, Customer number: {}, "
             "Items: [{}], Customer discount: {}, Total to pay: {}"
             .format(
-                self.order_id, self.customer_name, self.customer_number,
+                self.order_number, self.order_id,
+                self.customer_name, self.customer_number,
                 line_text, self.customer_discount, self.total_to_pay,
             )
         )
@@ -151,6 +154,7 @@ class Receipt:
         """
         self.payment_id = payment.payment_id
         self.order_id = payment.order.order_id
+        self.order_number = payment.order.order_number
         self.customer_name = payment.customer.cust_name
         self.customer_number = payment.customer.customer_number
         self.payment_type = payment.payment_type()

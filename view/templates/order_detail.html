@@ -29,6 +29,7 @@
   <article class="paper" id="invoice">
     <h2>Invoice</h2>
     <dl class="invoice-who">
+      <dt>Order number</dt><dd class="number">{{ invoice.order_number }}</dd>
       <dt>Customer</dt><dd>{{ invoice.customer_name }}</dd>
       <dt>Customer number</dt><dd class="number">{{ invoice.customer_number }}</dd>
       <dt>Date</dt><dd>{{ order.order_date }}</dd>
@@ -36,7 +37,14 @@
     </dl>
     <table>
       <thead>
-        <tr><th>Item</th><th>Quantity</th><th>Cost per unit</th></tr>
+        <tr>
+          <th>Item</th>
+          <th>Quantity</th>
+          <th>Cost per unit</th>
+          {# The discount column only appears when a line has one. #}
+          {% if invoice.bulk_discount %}<th>Bulk discount (10+)</th>{% endif %}
+          <th>Line cost</th>
+        </tr>
       </thead>
       <tbody>
         {% for line in invoice.lines %}
@@ -44,6 +52,10 @@
             <td>{{ line.plant_name }}</td>
             <td>{{ line.quantity }} {{ line.sale_unit }}</td>
             <td>${{ "%.2f"|format(line.unit_price) }}</td>
+            {% if invoice.bulk_discount %}
+              <td>{% if line.bulk_discount %}-${{ "%.2f"|format(line.bulk_discount) }}{% else %}None{% endif %}</td>
+            {% endif %}
+            <td>${{ "%.2f"|format(line.line_cost) }}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -51,11 +63,12 @@
     <dl class="invoice-totals">
       <dt>Total cost</dt><dd>${{ "%.2f"|format(invoice.cost) }}</dd>
       {% if invoice.bulk_discount %}
-        <dt>Bulk discount</dt><dd>${{ "%.2f"|format(invoice.bulk_discount) }}</dd>
+        <dt>Bulk discount</dt><dd>-${{ "%.2f"|format(invoice.bulk_discount) }}</dd>
       {% endif %}
       {% if invoice.customer_discount %}
-        <dt>Customer discount</dt><dd>${{ "%.2f"|format(invoice.customer_discount) }}</dd>
+        <dt>Customer discount</dt><dd>-${{ "%.2f"|format(invoice.customer_discount) }}</dd>
       {% endif %}
+      <dt class="grand">Total to pay</dt><dd class="grand">${{ "%.2f"|format(invoice.total_to_pay) }}</dd>
       <dt>Payments</dt><dd>${{ "%.2f"|format(order.amount_paid) }}</dd>
       <dt>Outstanding</dt><dd>${{ "%.2f"|format(order.remaining_balance) }}</dd>
     </dl>

@@ -152,6 +152,19 @@ class Order(Base):
         return self._order_id
 
     @property
+    def order_number(self) -> str:
+        """
+        Get a short number for this order, for invoices and receipts
+
+        The stored ID is a UUID, which is awkward to read out or print. These
+        eight characters come from that ID, the same way a customer number
+        does, so they stay the same for this order.
+
+        :return (str): Eight uppercase characters taken from the order ID
+        """
+        return str(self._order_id).replace("-", "")[:8].upper()
+
+    @property
     def order_date(self) -> str:
         """
         Get date of the order

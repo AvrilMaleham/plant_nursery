@@ -220,6 +220,13 @@ def test_invoice_lists_bulk_and_customer_discounts() -> None:
     assert invoice.lines[0].bulk_discount == 5.40
     assert invoice.customer_discount == 2.43
     assert invoice.total_to_pay == 46.17
+    # The invoice carries a short order number that stays the same for the
+    # order, and the total to pay does not fall when payments are made.
+    assert invoice.order_number == order.order_number
+    assert len(invoice.order_number) == 8
+    assert invoice.order_number == invoice.order_number.upper()
+    order.record_payment(46.17)
+    assert Invoice(order).total_to_pay == 46.17
 
 
 def test_receipt_shows_the_surcharge_and_what_is_left() -> None:

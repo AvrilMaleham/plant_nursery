@@ -6,7 +6,18 @@ This is a plant nursery management system that tracks plants, customers, orders,
 
 ## Getting started
 
-Do these steps in order, from this project folder. You need Python 3.10 or later (the code uses type hints such as `BaseException | None`, which Python 3.9 cannot read). Check with `python --version`. PostgreSQL must already be installed and running on this computer, on port 5432, before step 3. The installer asks you to choose a password. pgAdmin logs in with that same username and password. Use that username in the connection below.
+Do the steps in order. Run every command in a terminal, inside this project folder. Use the same terminal for steps 2 to 6.
+
+### Before you start
+
+- Python 3.10 or later. Check it with:
+
+```bash
+python --version
+```
+
+- PostgreSQL installed and running on port 5432.
+- The username and password you chose when you installed PostgreSQL. These are the same ones pgAdmin asks for. The username is usually `postgres`.
 
 ### 1. Install the Python packages
 
@@ -14,17 +25,15 @@ Do these steps in order, from this project folder. You need Python 3.10 or later
 pip install -r requirements.txt
 ```
 
-This installs Flask, SQLAlchemy, the PostgreSQL driver, and pytest. The full list is in `requirements.txt`.
-
 ### 2. Set the database connection
 
-The connection is the `DATABASE_URL` environment variable, including the password from the PostgreSQL installer. The password is not stored in the project. Set it once in the terminal you are using. A new terminal window needs the same command again.
+Replace `YOUR_USERNAME` and `YOUR_PASSWORD` with your own, then run it:
 
 ```bash
 export DATABASE_URL="postgresql+psycopg://YOUR_USERNAME:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery"
 ```
 
-Replace `YOUR_USERNAME` and `YOUR_PASSWORD` with your own PostgreSQL username and password. Do not leave those words in the command. The steps below use this variable, so they do not repeat them.
+Nothing is printed when it works. This only lasts for the terminal you ran it in. If you open a new terminal window, run it again.
 
 ### 3. Create the database and load the sample
 
@@ -32,13 +41,7 @@ Replace `YOUR_USERNAME` and `YOUR_PASSWORD` with your own PostgreSQL username an
 python seed.py
 ```
 
-This creates a database named `plant_nursery` if it is missing, creates the tables, and fills them with sample plants, customers, orders, payments, and logins. The sample photos are already in `view/static/images/`.
-
-The sample is enough to try every part of the site: a sold-out cactus, Avril's lavender order that has been pending for ten days, Jane's cancelled order and her order of twelve tomato punnets, and Sam's order of an orchid and lavender, paid with a debit card and then a credit card, and collected.
-
-Running the same command again clears those tables and loads the same sample.
-
-In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, `payments`, and `users`.
+This creates the `plant_nursery` database, creates the tables, and loads the sample data. It ends with a line starting `Nursery System: 6 plants, 3 customers...`. Running it again clears the tables and loads the same sample.
 
 ### 4. Start the website
 
@@ -46,9 +49,11 @@ In pgAdmin, right-click the server and choose Refresh. Open Databases, then `pla
 python app.py
 ```
 
-Open http://127.0.0.1:5000. Leave that terminal running. The site uses the `DATABASE_URL` from step 2. If the tables are missing, starting the site creates them. It does not load the sample, so run step 3 first when you want the logins below.
+Leave this terminal running while you use the site.
 
-These are the sample logins. Type the password as it appears here. The database stores a hash of it, which is covered further down.
+### 5. Open the website and log in
+
+Open http://127.0.0.1:5000 and log in with one of these:
 
 | Who | Username | Password |
 | --- | --- | --- |
@@ -57,26 +62,32 @@ These are the sample logins. Type the password as it appears here. The database 
 | Jane, student | janeUsername | JanePassword |
 | Sam, community | samUsername | SamPassword |
 
-The team shares one login. Each customer has their own, and after login they only see their own details, orders, and payments. The team sees the whole nursery, including orders that have been waiting seven days or more.
+The team sees the whole nursery. A customer only sees their own details, orders, and payments.
 
-### 5. Run the tests
+### 6. Run the tests (optional)
 
-From this folder, with the same `DATABASE_URL` still set, and with PostgreSQL still running:
+Open a second terminal in this folder, run step 2 again in it, then run:
 
 ```bash
 python -m pytest
 ```
 
-The unit tests in `tests/test_business_rules.py` check the business rules on their own and do not open the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. They use a separate database named `plant_nursery_test` on that same server, so the sample data in `plant_nursery` is left as it is.
+The tests use a separate database called `plant_nursery_test`, so your sample data is not changed.
 
-To run one file:
+### Optional: see the data in pgAdmin
+
+Right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, `payments`, and `users`.
+
+### About the sample data
+
+The sample covers every part of the site: a sold-out cactus, Avril's lavender order that has been pending for ten days, Jane's cancelled order and her order of twelve tomato punnets, and Sam's order of an orchid and lavender, paid with a debit card and then a credit card, and collected.
+
+The unit tests in `tests/test_business_rules.py` check the business rules without the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. To run one file:
 
 ```bash
 python -m pytest tests/test_business_rules.py
 python -m pytest tests/test_workflows.py
 ```
-
-The second command needs PostgreSQL running, because those tests create `plant_nursery_test` and sign in through the pages.
 
 ## Design Decisions
 
@@ -164,7 +175,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 
 ### Invoices, Receipts, and Orders Waiting to Be Collected
 
-`Invoice` is built from the order. Each `InvoiceLine` shows the plant, the quantity in that plant's sale unit, the line cost, and the bulk discount on that line, which is the difference between the full line and `item_cost` when the quantity is at least 10. The customer discount is the difference between the sum of the line costs and `order_total`. The order page is the invoice, and its print button uses the browser print dialog. The buttons and the payment form are marked `no-print`, so the printed page is the invoice.
+`Invoice` is built from the order. Each `InvoiceLine` shows the plant, the quantity in that plant's sale unit, the line cost, and the bulk discount on that line, which is the difference between the full line and `item_cost` when the quantity is at least 10. The customer discount is the difference between the sum of the line costs and `order_total`. The order page is the invoice. It shows the order number (`Order.order_number`, eight characters taken from the order ID the same way the customer number is), the customer, the date, and a table with each item's quantity, price per unit, bulk discount, and line cost. The bulk discount column only appears when a line has one. Under the table are the total cost, the bulk discount, the customer discount, and the **total to pay**, followed by what has been paid and what is still outstanding. The total to pay stays on the page after the order is settled, so a printed copy still shows what the order came to. The print button uses the browser print dialog. The buttons and the payment form are marked `no-print`, so the printed page is the invoice.
 
 `Receipt` is built from one payment. It shows the amount applied to the order, the card type, the surcharge from `amount_charged()`, and what was still owed on the order after that payment. `receipt_for()` walks that order's payments in time order so an earlier receipt still shows the balance left at that time, even after a later payment. A credit card payment of the remaining balance still reduces the order by the balance and charges 1.5% more. The receipt page has its own print button.
 
