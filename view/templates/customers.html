@@ -19,11 +19,12 @@
   {% if customers %}
     <table>
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Owes</th><th></th></tr>
+        <tr><th>Customer number</th><th>Name</th><th>Type</th><th>Owes</th><th></th></tr>
       </thead>
       <tbody>
         {% for customer in customers %}
           <tr>
+            <td class="number">{{ customer.customer_number }}</td>
             <td>{{ customer.cust_name }}</td>
             <td>{{ customer.customer_type() }}</td>
             <td>${{ "%.2f"|format(customer.balance) }}</td>

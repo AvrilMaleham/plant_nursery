@@ -83,6 +83,10 @@ The 10% discount is per line, in `OrderItem.__calculate_cost()`, using `BULK_DIS
 
 Plants, customers, orders, order items, payments, and users are stored in PostgreSQL on port 5432, which is the server pgAdmin opens. SQLAlchemy maps the classes onto those tables. `seed.py` creates the `plant_nursery` database if it is missing, creates the tables, and loads the sample. The connection is the `DATABASE_URL` environment variable, including the password from the PostgreSQL installer. The password is not stored in the project.
 
+### A Customer Number Instead of Showing the ID
+
+Two customers can share a name, so a name on its own is not enough on screen. The stored identity stays `cust_id`, a UUID, and that is what the database and the routes use. A UUID is awkward to read out at the desk. `Customer.customer_number` takes the first eight characters of that UUID and shows them in uppercase. The number comes from the existing ID, so it stays the same for that customer and does not need its own column. The customer sees it on their own pages. The nursery team sees it wherever a customer is chosen or listed, including orders, payments, invoices, and receipts.
+
 ### Custom Exceptions in Their Own File
 
 Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`, `OrderCannotBeCollectedError`, or `OrderCannotBeCancelledError` instead of a generic `ValueError`, so the caller can catch the specific problem. They live in `exceptions.py` so `Plant`, `Order`, and `NurserySystem` import the same types. Each one stores the message in `__message` and passes it to `Exception`. They do not print. Ordinary bad input, such as a price of 0 or a missing card number, is still a `ValueError` because that is invalid data, not an illegal step in an order that already exists.

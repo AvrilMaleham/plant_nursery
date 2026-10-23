@@ -24,6 +24,7 @@
       <label><input type="radio" name="price_band" value="" {% if not filters.price_band %}checked{% endif %}> Any</label>
       <label><input type="radio" name="price_band" value="under-10" {% if filters.price_band == 'under-10' %}checked{% endif %}> Under $10</label>
       <label><input type="radio" name="price_band" value="10-30" {% if filters.price_band == '10-30' %}checked{% endif %}> $10 to $30</label>
+      <label><input type="radio" name="price_band" value="over-30" {% if filters.price_band == 'over-30' %}checked{% endif %}> Over $30</label>
     </fieldset>
     <div class="filter-actions">
       <label class="check">

@@ -40,7 +40,12 @@ def every_customer() -> list:
     found = []
     for customer_type in CUSTOMER_TYPES:
         found.extend(system().filter_customers(customer_type))
-    found.sort(key=lambda customer: customer.cust_name.casefold())
+    found.sort(
+        key=lambda customer: (
+            customer.cust_name.casefold(),
+            customer.customer_number,
+        )
+    )
     return found
 
 
@@ -60,7 +65,12 @@ def customers() -> str:
             listed = every_customer()
     except RULE_ERRORS as error:
         return explain(error)
-    listed.sort(key=lambda customer: customer.cust_name.casefold())
+    listed.sort(
+        key=lambda customer: (
+            customer.cust_name.casefold(),
+            customer.customer_number,
+        )
+    )
     return render_template(
         "customers.html",
         customers=listed,
@@ -111,7 +121,10 @@ def add_customer() -> str:
             form=request.form,
         )
 
-    flash(f"{customer.cust_name} added.", "success")
+    flash(
+        f"{customer.cust_name} added. Customer number {customer.customer_number}.",
+        "success",
+    )
     return redirect(
         url_for("nursery.customer_detail", customer_id=customer.cust_id)
     )

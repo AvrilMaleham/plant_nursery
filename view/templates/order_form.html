@@ -11,7 +11,7 @@
           <option value="">Choose a customer</option>
           {% for customer in customers %}
             <option value="{{ customer.cust_id }}" {% if form.get('customer_id', selected_customer_id) == customer.cust_id|string %}selected{% endif %}>
-              {{ customer.cust_name }} ({{ customer.customer_type() }})
+              {{ customer.cust_name }} ({{ customer.customer_number }}, {{ customer.customer_type() }})
             </option>
           {% endfor %}
         </select>

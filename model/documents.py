@@ -72,6 +72,7 @@ class Invoice:
         """
         self.order_id = order.order_id
         self.customer_name = order.customer.cust_name
+        self.customer_number = order.customer.customer_number
         self.lines: list[InvoiceLine] = []
         line_total = 0.0
         for item in order.items:
@@ -123,11 +124,11 @@ class Invoice:
         """
         line_text = "; ".join(str(line) for line in self.lines)
         return (
-            "Invoice for order {}: Customer: {}, Items: [{}], "
-            "Customer discount: {}, Total to pay: {}"
+            "Invoice for order {}: Customer: {}, Customer number: {}, "
+            "Items: [{}], Customer discount: {}, Total to pay: {}"
             .format(
-                self.order_id, self.customer_name, line_text,
-                self.customer_discount, self.total_to_pay,
+                self.order_id, self.customer_name, self.customer_number,
+                line_text, self.customer_discount, self.total_to_pay,
             )
         )
 
@@ -151,6 +152,7 @@ class Receipt:
         self.payment_id = payment.payment_id
         self.order_id = payment.order.order_id
         self.customer_name = payment.customer.cust_name
+        self.customer_number = payment.customer.customer_number
         self.payment_type = payment.payment_type()
         self.amount = payment.amount
         self.surcharge = round(payment.amount_charged() - payment.amount, 2)
@@ -166,12 +168,13 @@ class Receipt:
         :return (str): A readable receipt
         """
         return (
-            "Receipt {}: Customer: {}, Order: {}, Paid: {}, How: {}, "
-            "Surcharge: {}, Charged: {}, Still to pay on order: {}"
+            "Receipt {}: Customer: {}, Customer number: {}, Order: {}, "
+            "Paid: {}, How: {}, Surcharge: {}, Charged: {}, "
+            "Still to pay on order: {}"
             .format(
-                self.payment_id, self.customer_name, self.order_id,
-                self.amount, self.payment_type, self.surcharge,
-                self.amount_charged, self.remaining_on_order,
+                self.payment_id, self.customer_name, self.customer_number,
+                self.order_id, self.amount, self.payment_type,
+                self.surcharge, self.amount_charged, self.remaining_on_order,
             )
         )
 

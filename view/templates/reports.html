@@ -73,7 +73,7 @@
             {% for order in history %}
               <tr>
                 <td>{{ order.order_date }}</td>
-                <td>{{ order.customer.cust_name }}</td>
+                <td>{{ order.customer.cust_name }} <span class="number">{{ order.customer.customer_number }}</span></td>
                 <td>{{ order.order_status }}</td>
                 <td>
                   {% for item in order.items if item.plant.plant_id == chosen_plant.plant_id %}
@@ -98,7 +98,7 @@
         <select name="customer_id">
           <option value="">Choose a customer</option>
           {% for customer in customers %}
-            <option value="{{ customer.cust_id }}" {% if chosen_customer and chosen_customer.cust_id == customer.cust_id %}selected{% endif %}>{{ customer.cust_name }}</option>
+            <option value="{{ customer.cust_id }}" {% if chosen_customer and chosen_customer.cust_id == customer.cust_id %}selected{% endif %}>{{ customer.cust_name }} ({{ customer.customer_number }})</option>
           {% endfor %}
         </select>
       </label>

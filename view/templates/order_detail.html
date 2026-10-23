@@ -8,12 +8,10 @@
     <p class="alert follow-up" role="alert">Uncollected for 7 days or more. This order needs a follow-up.</p>
   {% endif %}
   <div class="actions no-print">
-    {% if order.order_status != "cancelled" %}
-      <form method="post" action="{{ url_for('nursery.cancel_order', order_id=order.order_id) }}" class="inline">
-        <button type="submit" class="danger">Cancel this order</button>
-      </form>
-    {% endif %}
-    {% if can_collect %}
+    <form method="post" action="{{ url_for('nursery.cancel_order', order_id=order.order_id) }}" class="inline">
+      <button type="submit" class="danger">Cancel this order</button>
+    </form>
+    {% if is_team %}
       <form method="post" action="{{ url_for('nursery.collect_order', order_id=order.order_id) }}" class="inline">
         <button type="submit">Mark collected</button>
       </form>
@@ -32,6 +30,7 @@
     <h2>Invoice</h2>
     <dl class="invoice-who">
       <dt>Customer</dt><dd>{{ invoice.customer_name }}</dd>
+      <dt>Customer number</dt><dd class="number">{{ invoice.customer_number }}</dd>
       <dt>Date</dt><dd>{{ order.order_date }}</dd>
       <dt>Status</dt><dd>{{ order.order_status }}</dd>
     </dl>

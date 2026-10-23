@@ -7,6 +7,7 @@
     <h1>Receipt</h1>
     <dl>
       <dt>Customer</dt><dd>{{ receipt.customer_name }}</dd>
+      <dt>Customer number</dt><dd class="number">{{ receipt.customer_number }}</dd>
       <dt>Order</dt>
       <dd><a href="{{ url_for('nursery.order_detail', order_id=receipt.order_id) }}">{{ receipt.order_id }}</a></dd>
       <dt>Paid</dt><dd>${{ "%.2f"|format(receipt.amount) }}</dd>

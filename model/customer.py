@@ -131,6 +131,19 @@ class Customer(Base):
         return self._cust_id
 
     @property
+    def customer_number(self) -> str:
+        """
+        Get a short unique number for this customer
+
+        Two customers can share a name. The stored ID is a UUID, which is
+        awkward to read out. These eight characters come from that ID, so
+        they stay the same for this customer and tell two people apart.
+
+        :return (str): Eight uppercase characters taken from the customer ID
+        """
+        return str(self._cust_id).replace("-", "")[:8].upper()
+
+    @property
     def cust_name(self) -> str:
         """
         Get the customer name

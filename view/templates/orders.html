@@ -25,7 +25,7 @@
         {% for row in orders %}
           <tr {% if row.needs_follow_up %}class="follow-up"{% endif %}>
             <td>{{ row.order.order_date }}</td>
-            <td>{{ row.order.customer.cust_name }}</td>
+            <td>{{ row.order.customer.cust_name }} <span class="number">{{ row.order.customer.customer_number }}</span></td>
             <td>{{ row.order.order_status }}</td>
             <td>${{ "%.2f"|format(row.order.order_total) }}</td>
             <td>${{ "%.2f"|format(row.order.remaining_balance) }}</td>

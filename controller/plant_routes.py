@@ -55,8 +55,9 @@ def search_filters() -> dict[str, object]:
     Read the plant search form.
 
     Brent asks for one price range, such as under $10 or between $10 and
-    $30. Under $10 stops just below $10, so a $10 plant stays in the other
-    band. The model includes its maximum.
+    $30. Under $10 stops just below $10, and over $30 starts just above
+    $30, so a plant priced on a boundary stays in one band. The model
+    includes its maximum.
 
     :return (dict[str, object]): The values to show again, and the model filters
     """
@@ -67,6 +68,8 @@ def search_filters() -> dict[str, object]:
         max_price = 9.99
     elif band == "10-30":
         min_price, max_price = 10.0, 30.0
+    elif band == "over-30":
+        min_price = 30.01
     else:
         band = ""
     plant_type = text(request.args.get("plant_type")) or None

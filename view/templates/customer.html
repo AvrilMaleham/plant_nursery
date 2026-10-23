@@ -5,15 +5,23 @@
 {% block content %}
   <h1>{{ customer.cust_name }}</h1>
   <dl>
+    <dt>Customer number</dt><dd class="number">{{ customer.customer_number }}</dd>
     <dt>Type</dt><dd>{{ customer.customer_type() }}</dd>
     <dt>Email</dt><dd>{{ customer.cust_email or "None" }}</dd>
     <dt>Phone</dt><dd>{{ customer.cust_phone or "None" }}</dd>
     <dt>Owes</dt><dd>${{ "%.2f"|format(customer.balance) }}</dd>
   </dl>
-  {% if is_team %}
-    <p class="actions">
-      <a class="button" href="{{ url_for('nursery.place_order', customer_id=customer.cust_id) }}">Place an order for this customer</a>
-    </p>
+  {% if is_team or allow_remove %}
+    <div class="actions">
+      {% if is_team %}
+        <a class="button" href="{{ url_for('nursery.place_order', customer_id=customer.cust_id) }}">Place an order for this customer</a>
+      {% endif %}
+      {% if allow_remove %}
+        <form class="inline" method="post" action="{{ url_for('nursery.remove_customer', customer_id=customer.cust_id) }}">
+          <button type="submit" class="danger">Remove this customer</button>
+        </form>
+      {% endif %}
+    </div>
   {% endif %}
 
   <h2>Orders</h2>
@@ -67,9 +75,4 @@
     <p>No activity yet.</p>
   {% endif %}
 
-  {% if allow_remove %}
-    <form method="post" action="{{ url_for('nursery.remove_customer', customer_id=customer.cust_id) }}">
-      <button type="submit" class="danger">Remove this customer</button>
-    </form>
-  {% endif %}
 {% endblock %}

@@ -13,7 +13,7 @@
         {% for payment in payments %}
           <tr>
             <td>{{ payment.payment_date }}</td>
-            <td>{{ payment.customer.cust_name }}</td>
+            <td>{{ payment.customer.cust_name }} <span class="number">{{ payment.customer.customer_number }}</span></td>
             <td>{{ payment.payment_type() }}</td>
             <td>${{ "%.2f"|format(payment.amount) }}</td>
             <td>${{ "%.2f"|format(payment.amount_charged()) }}</td>

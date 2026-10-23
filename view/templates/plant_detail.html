@@ -22,13 +22,18 @@
       <dt>Seedlings per punnet</dt><dd>{{ plant.seedlings_per_punnet }}</dd>
     {% endif %}
   </dl>
-  <p class="actions">
+  <div class="actions">
     {% if plant.plant_stock == 0 %}
       <button type="button" disabled>Order this plant</button>
     {% else %}
       <a class="button" href="{{ url_for('nursery.place_order', plant_id=plant.plant_id) }}">Order this plant</a>
     {% endif %}
-  </p>
+    {% if is_team %}
+      <form class="inline" method="post" action="{{ url_for('nursery.remove_plant', plant_id=plant.plant_id) }}">
+        <button type="submit" class="danger">Remove this plant</button>
+      </form>
+    {% endif %}
+  </div>
 
   {% if is_team %}
     <h2>Update price and stock</h2>
@@ -40,9 +45,6 @@
         <input name="stock" value="{{ plant.plant_stock }}" required>
       </label>
       <button type="submit">Save</button>
-    </form>
-    <form method="post" action="{{ url_for('nursery.remove_plant', plant_id=plant.plant_id) }}">
-      <button type="submit" class="danger">Remove this plant</button>
     </form>
   {% endif %}
 {% endblock %}

@@ -1028,7 +1028,7 @@ class NurserySystem:
                 ActivityRecord(
                     payment.payment_date,
                     "paid",
-                    "Paid {} toward order {}".format(
+                    "Paid ${:.2f} toward order {}".format(
                         payment.amount, payment.order.order_id
                     ),
                 ),

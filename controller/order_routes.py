@@ -137,7 +137,7 @@ def place_order() -> str:
 @signed_in
 def order_detail(order_id: uuid.UUID) -> str:
     """
-    Show an order, its invoice, and the actions still available.
+    Show an order, its invoice, and the actions for it.
 
     :param order_id (uuid.UUID): The order to show
     :return (str): The order page
@@ -150,7 +150,8 @@ def order_detail(order_id: uuid.UUID) -> str:
         return explain(error)
     pending = order.order_status == "pending"
     # Community customers have to pay an order off before it can be collected.
-    # Staff and students can collect while they still owe.
+    # Staff and students can collect while they still owe. The button stays
+    # visible either way; collect_order() refuses the ones that are not ready.
     collect_allowed = order.customer.can_collect_order(order.remaining_balance)
     return render_template(
         "order_detail.html",
@@ -158,7 +159,6 @@ def order_detail(order_id: uuid.UUID) -> str:
         invoice=invoice,
         payments=payments,
         needs_follow_up=order.is_uncollected_too_long(),
-        can_collect=is_team() and pending and collect_allowed,
         awaiting_payment=pending and not collect_allowed,
         can_pay=order.remaining_balance > 0,
     )

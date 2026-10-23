@@ -11,7 +11,7 @@
     <a class="brand" href="{{ url_for('nursery.home') }}">Lincoln University Nursery</a>
     {% if current_user %}
       <p class="who">
-        {% if is_team %}Nursery team{% else %}{{ current_user.customer.cust_name }}{% endif %}
+        {% if is_team %}Nursery team{% else %}{{ current_user.customer.cust_name }} <span class="number">{{ current_user.customer.customer_number }}</span>{% endif %}
       </p>
       <nav>
         <a href="{{ url_for('nursery.home') }}">Dashboard</a>
