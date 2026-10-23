@@ -2,37 +2,53 @@
 
 ## Overview
 
-This is a plant nursery management system that tracks plants, customers, orders, and payments. The design is based on Brent's notes outlining what the nursery needs for its day to day operations.
+This is a plant nursery management system that tracks plants, customers, orders, and payments. The design is based on Brent's notes outlining what the nursery needs for its day to day operations. The finished version is a website on this computer. The nursery team and each customer log in, and PostgreSQL stores the plants, customers, orders, payments, and logins.
 
-## How to Run
+## Getting started
 
-PostgreSQL must already be installed and running on this computer, on port 5432. The installer asks you to choose a password. pgAdmin logs in with that same password.
+Do these steps in order, from this project folder. PostgreSQL must already be installed and running on this computer, on port 5432, before step 3. The installer asks you to choose a password. pgAdmin logs in with that same username and password. Use that username in the connection below.
 
-From the project folder, install the Python packages:
+### 1. Install the Python packages
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create the database and load the sample. Use the same username and password as pgAdmin. The username is usually `postgres`.
+This installs Flask, SQLAlchemy, the PostgreSQL driver, and pytest. The full list is in `requirements.txt`.
+
+### 2. Set the database connection
+
+The connection is the `DATABASE_URL` environment variable, including the password from the PostgreSQL installer. The password is not stored in the project. Set it once in the terminal you are using. A new terminal window needs the same command again.
 
 ```bash
-DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python seed.py
+export DATABASE_URL="postgresql+psycopg://YOUR_USERNAME:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery"
 ```
 
-Replace `YOUR_PASSWORD` with your own password. Do not leave those words in the command. This creates a database named `plant_nursery` and fills it with sample plants, customers, orders, payments, and logins.
+Replace `YOUR_USERNAME` and `YOUR_PASSWORD` with your own PostgreSQL username and password. Do not leave those words in the command. The steps below use this variable, so they do not repeat them.
 
-In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, `payments`, and `users`.
+### 3. Create the database and load the sample
+
+```bash
+python seed.py
+```
+
+This creates a database named `plant_nursery` if it is missing, creates the tables, and fills them with sample plants, customers, orders, payments, and logins. The sample photos are already in `view/static/images/`.
+
+The sample is enough to try every part of the site: a sold-out cactus, Avril's lavender order that has been pending for ten days, Jane's cancelled order and her order of twelve tomato punnets, and Sam's order of an orchid and lavender, paid with a debit card and then a credit card, and collected.
 
 Running the same command again clears those tables and loads the same sample.
 
-Start the web application with the same connection:
+In pgAdmin, right-click the server and choose Refresh. Open Databases, then `plant_nursery`, then Schemas, public, Tables. The tables are `plants`, `customers`, `orders`, `order_items`, `payments`, and `users`.
+
+### 4. Start the website
 
 ```bash
-DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" python app.py
+python app.py
 ```
 
-Open http://127.0.0.1:5000. These are the sample logins:
+Open http://127.0.0.1:5000. Leave that terminal running. The site uses the `DATABASE_URL` from step 2. If the tables are missing, starting the site creates them. It does not load the sample, so run step 3 first when you want the logins below.
+
+These are the sample logins. Type the password as it appears here. The database stores a hash of it, which is covered further down.
 
 | Who | Username | Password |
 | --- | --- | --- |
@@ -41,15 +57,26 @@ Open http://127.0.0.1:5000. These are the sample logins:
 | Jane, student | janeUsername | JanePassword |
 | Sam, community | samUsername | SamPassword |
 
-## Running the tests
+The team shares one login. Each customer has their own, and after login they only see their own details, orders, and payments. The team sees the whole nursery, including orders that have been waiting seven days or more.
 
-From this folder, with the same `DATABASE_URL` used to start the application:
+### 5. Run the tests
+
+From this folder, with the same `DATABASE_URL` still set, and with PostgreSQL still running:
 
 ```bash
-DATABASE_URL="postgresql+psycopg://postgres:YOUR_PASSWORD@127.0.0.1:5432/plant_nursery" pytest
+python -m pytest
 ```
 
-The unit tests check the business rules on their own and do not open the database. The integration tests sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. They use a separate database named `plant_nursery_test` on that same server, so the sample data in `plant_nursery` is left as it is.
+The unit tests in `tests/test_business_rules.py` check the business rules on their own and do not open the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. They use a separate database named `plant_nursery_test` on that same server, so the sample data in `plant_nursery` is left as it is.
+
+To run one file:
+
+```bash
+python -m pytest tests/test_business_rules.py
+python -m pytest tests/test_workflows.py
+```
+
+The second command needs PostgreSQL running, because those tests create `plant_nursery_test` and sign in through the pages.
 
 ## Design Decisions
 
@@ -101,6 +128,56 @@ Two customers can share a name, so a name on its own is not enough on screen. Th
 
 Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`, `OrderCannotBeCollectedError`, or `OrderCannotBeCancelledError` instead of a generic `ValueError`, so the caller can catch the specific problem. They live in `exceptions.py` so `Plant`, `Order`, and `NurserySystem` import the same types. Each one stores the message in `__message` and passes it to `Exception`. They do not print. Ordinary bad input, such as a price of 0 or a missing card number, is still a `ValueError` because that is invalid data, not an illegal step in an order that already exists.
 
+### Login, and What Each Person Can Do
+
+Everyone logs in with a username and password before they see a dashboard. `User` stores the role as `team` or `customer`. The team account is not linked to a customer. A customer account must be linked to one. Those rules are checked in `User.__init__` and again by checks on the `users` table.
+
+`NurserySystem.login()` looks the username up and checks the password. A missing username and a wrong password both raise `LoginFailedError` with the same message, so the login page does not reveal which of the two failed. The controller then stores the user id in the session cookie. The next request calls `resume()`, and the role checks run as that person. Logging out clears the cookie. Pages are sent with `Cache-Control: no-store`, so the back button does not restore a logged-in page from the browser cache after logout.
+
+`__require_login()`, `__require_team()`, and `__require_self_or_team()` are the checks the other methods call first. A customer can see their own details, search plants, place an order, pay toward their own orders, cancel their own pending unpaid order, and open their own invoice and receipts. The team can add and remove plants and customers, change price and stock, place an order or take a payment for someone at the counter, see every customer, order, and payment, and open the reports. `collect_order()` calls `__require_team()` before it asks the order whether collection is allowed, because only the team can confirm the plants have left the nursery. The earlier rules still run after the role check. A community customer still cannot hold two pending orders, and still has to pay in full before collection. A staff member or student still cannot place another order once their balance is already over $100.
+
+When the team adds a customer, the form also creates that customer's login through `add_user()`. A customer does not register themselves.
+
+### Passwords Are Stored as Hashes
+
+`User` hashes the password with Werkzeug's `generate_password_hash` before it is saved. `check_password()` compares what was typed with that hash. The `users` table has `password_hash` and no column for the typed password. The sample passwords in the table above are what you type on the login page.
+
+### Model, View, and Controller
+
+`model/` holds the domain classes, the custom exceptions, the invoice and receipt objects, and the database mapping. `NurserySystem` is still the only object the controllers talk to for the nursery rules. `view/templates/` and `view/static/` present the pages, the CSS, and the plant photos. A template shows what it was given and sends the next action back as a form or a link. `controller/` reads that action, calls `NurserySystem`, and chooses the template. `app.py` creates the Flask application and points it at the `view` folders.
+
+`controller/blueprint.py` opens one database session for each request. The session commits when the request finishes, and rolls back when it does not. A refused rule is also rolled back in `explain()`, and the exception message is flashed on the page the person came from. A failed payment or a refused order does not stay half-saved, and the person is told the reason in the model's own words.
+
+### Single-Table Inheritance in PostgreSQL
+
+Plants, customers, and payments each use single-table inheritance. `Plant`, `Customer`, and `Payment` stay abstract, and each hierarchy has one table: `plants`, `customers`, and `payments`. The type is a column on that table (`plant_type`, `customer_type`, `payment_type`). SQLAlchemy uses that column as `polymorphic_on`, so a loaded row is built as a `PotPlant`, a `StudentCustomer`, or a `CreditCardPayment`. Columns that belong to one subtype stay on the same table and are null for the others: `pot_size` and `seedlings_per_punnet` on plants, `expiry_date` and `bank_name` on payments. Check constraints keep that split, so a pot plant cannot be saved without a pot size, and a tree cannot be saved with one. Staff, students, and community customers already share the same columns, which is why they do not need a column that only one of them uses.
+
+The lists on screen are mixed types read together, and each subtype only adds a column or two, so one table and one row per object matches how the pages load them. Joined-table inheritance would put those few columns in a second table and join it for every list. Concrete-table inheritance would repeat the shared columns once per subtype. Orders, order items, and users are separate tables. An order item points at its plant and its order. A payment points at its customer and its order. A user points at a customer only when the role is `customer`.
+
+The file save from the earlier version is gone. Each successful request commits to PostgreSQL, so the data is still there after the website stops and is loaded again when it starts. `seed.py` creates the database if it is missing, creates the tables, and loads the sample. Starting the website also creates any missing tables, through `init_db()`, and does not load the sample.
+
+### Search, Photos, and Managing the Catalog
+
+`NurserySystem.search_plants()` matches part of the common name, ignoring letter case, and can also keep one of the four plant types, a minimum price, a maximum price, and plants whose stock is greater than 0. The search page turns the examples from Brent's notes into three bands before it calls that method. Under $10 uses a maximum of 9.99. From $10 to $30 uses 10 and 30. Over $30 uses a minimum of 30.01. A plant priced at exactly $10 or exactly $30 stays in the middle band, because the model includes its maximum and the bands are built so a boundary price belongs to one band. The plant page shows the stored fields and the photo from `view/static/images/`.
+
+When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. It is saved under a new id plus that extension, so a later upload does not overwrite an existing file. Price and stock updates go through `update_plant_price()` and `update_plant_stock()`, which use the same setters as before, so stock still cannot be typed in as 0. `remove_plant()` refuses a plant that appears on any order, including a cancelled one, so the order history still has its plant. `remove_customer()` refuses a customer who has placed any order. When a customer has never ordered, their login is deleted with them.
+
+### Invoices, Receipts, and Orders Waiting to Be Collected
+
+`Invoice` is built from the order. Each `InvoiceLine` shows the plant, the quantity in that plant's sale unit, the line cost, and the bulk discount on that line, which is the difference between the full line and `item_cost` when the quantity is at least 10. The customer discount is the difference between the sum of the line costs and `order_total`. The order page is the invoice, and its print button uses the browser print dialog. The buttons and the payment form are marked `no-print`, so the printed page is the invoice.
+
+`Receipt` is built from one payment. It shows the amount applied to the order, the card type, the surcharge from `amount_charged()`, and what was still owed on the order after that payment. `receipt_for()` walks that order's payments in time order so an earlier receipt still shows the balance left at that time, even after a later payment. A credit card payment of the remaining balance still reduces the order by the balance and charges 1.5% more. The receipt page has its own print button.
+
+`Order.is_uncollected_too_long()` is true when the status is still `pending` and at least `UNCOLLECTED_AFTER_DAYS` (7) days have passed since the order date. Collected and cancelled orders are not flagged. The team dashboard and the customer's own order list both show that flag, and the order's `__str__` adds the same follow-up text.
+
+### Reports
+
+`plant_order_history()` returns every order that includes that plant, oldest first, including cancelled orders. `customer_activity()` builds an `ActivityRecord` for each placed, paid, collected, and cancelled event, sorted by date. `most_ordered_plants()` and `least_ordered_plants()` count quantity on orders that are not cancelled. A plant that has never been ordered is included as 0, so it still appears at the top of the least-ordered list. Ties are alphabetical by plant name. `revenue()` totals `amount_charged()` for payments in a day, a week, or a month, so a credit card surcharge is part of the revenue. A week is the chosen date plus the next six days. A month is the calendar month that contains the chosen date. All five reports call `__require_team()`.
+
+### Login and Authorisation Exceptions
+
+`LoginFailedError` and `NotAuthorisedError` are the two exceptions added for this version. They live in `exceptions.py` with the original four, and they store their message the same way. The controllers catch them in `RULE_ERRORS`, together with `ValueError`, `TypeError`, and the four order exceptions, and `explain()` flashes `str(error)`. A wrong password, a customer opening someone else's order, and a customer trying to collect an order all come back as a message on the page.
+
 ## Assumptions
 
 ### Plant
@@ -131,6 +208,22 @@ Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`,
 
 - Card number, expiry date, and bank name just need to be given, Brent did not specify a format.
 - The 1.5% surcharge is added to what the customer pays, the order only comes down by the amount applied to it. The rate is `CREDIT_CARD_SURCHARGE_RATE`. A debit card uses `DEBIT_CARD_SURCHARGE_RATE`, which is 0.
+
+### Login and the Website
+
+- The nursery team shares one username and password. The team creates a customer's login when they add that customer. A customer does not sign themselves up.
+- A wrong username and a wrong password show the same message.
+- The website runs on this one computer. It is not set up for anyone to reach it from another machine.
+- The session cookie uses `FLASK_SECRET_KEY` when that variable is set. Otherwise it uses a fixed local value, which is enough for one computer in the nursery.
+- Plant photos are PNG, JPG, GIF, or WEBP. The sample plants already have photos in the project.
+- A price search uses three bands: under $10, $10 to $30, and over $30. A plant at exactly $10 or $30 is in the middle band.
+- An order needs a follow-up when it is still pending and at least seven days have passed since the order date. The order date counts as day zero. Collected and cancelled orders are not flagged.
+- Only the team can mark an order collected. The customer can cancel their own order while it is still pending and nothing has been paid toward it. The team can cancel one for them.
+- A plant that has been on any order, including a cancelled order, cannot be removed. A customer who has placed any order cannot be removed. A customer who has never ordered has their login removed with them.
+- Popularity counts the quantity on orders that are not cancelled. A plant that has never been ordered is included with a count of 0. Cancelled orders still appear in a plant's order history.
+- Revenue is the amount charged, so a credit card surcharge is included. A week is the chosen date and the next six days. A month is the calendar month that contains the chosen date.
+- Card numbers are stored as they were typed. Brent did not ask for them to be hidden or checked as real card numbers.
+- The invoice and the receipt are printed from those pages, through the browser's print dialog. The buttons and the navigation are left off the printed page.
 
 ## Requirements Covered from Brent's Notes
 
@@ -178,3 +271,40 @@ Illegal order operations raise `InsufficientStockError`, `OrderNotAllowedError`,
 - Every class and method has a docstring. Parameters and return values include their types. Method parameters and return values have type hints, and so do the object and list attributes.
 - Comments explain the choices that are not obvious from the code, such as why stock can reach 0 only through an order, and why a list getter returns a copy.
 - Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four custom exceptions, and the caller catches them.
+
+## Requirements from Brent's Final Notes
+
+### Who Can Log In
+
+- The team shares one login. Each customer has their own, created when the team adds them. `login()` checks the username and the hashed password and raises `LoginFailedError` when they do not match. After login, `resume()` restores that person on the next request, and the navigation and the model checks follow the role. A customer reaches their own dashboard. The team reaches the nursery dashboard.
+
+### What a Customer Can Do
+
+- The customer page shows their own name, contact details, customer number, type, and balance. They can update their own name, email, and phone. At least one of email or phone still has to remain.
+- `search_plants()` is the plant search. The page can narrow it by type, by one of the three price bands, and to plants with stock greater than 0. The plant page shows every stored field and the photo.
+- A customer places an order from plants they choose. The same `place_order()` path checks stock, the pending-order rule, the $100 limit, the bulk discount, and the customer discount. They pay toward their own order with a credit card or a debit card, and they can cancel it while it is pending and unpaid. Their pages list their own orders and payments. The order page is their invoice, and each payment has a receipt.
+
+### What the Team Can Do
+
+- The team adds and removes plants and customers, uploads a photo for a new plant, and updates price and stock. `remove_plant()` and `remove_customer()` refuse a plant or a customer that is already on an order. The team can search for a plant by name with the same search the customers use.
+- The team places an order and records a payment for a chosen customer. Those calls go through `place_order()` and `record_payment()`, so the customer's own rules still apply. The team sees every order, with a status filter, every payment, and customers one type at a time through `filter_customers()`. They can cancel an order under the same unpaid-pending rule, and they are the only ones who can call `collect_order()`.
+- The team can open any customer's invoice and any receipt.
+
+### Orders Waiting Seven Days
+
+- `is_uncollected_too_long()` flags a pending order once seven days have passed. The team dashboard lists those orders, and the customer's own list marks theirs the same way.
+
+### Reports
+
+- `plant_order_history()` is the order history for one plant. `customer_activity()` is the dated record of that customer's orders being placed, paid toward, collected, or cancelled. `most_ordered_plants()` and `least_ordered_plants()` rank the catalog. `revenue()` totals what was charged over a day, a week, or a month. The reports page is limited to the team.
+
+### Database, Layout, and Tests
+
+- Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
+- `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
+- `LoginFailedError` and `NotAuthorisedError` are the two new custom exceptions. The controllers flash those, and the original four, with the message the model raised.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared.
+
+## Generative AI
+
+Cursor, with the Grok model, was used while building this application and while updating this README. It was used to draft and revise the Flask pages, the controllers, the SQLAlchemy mapping, the sample data in `seed.py`, and the pytest tests, and to check this README against Brent's notes and the code. The design decisions and assumptions in this file are the ones in the submitted code.
