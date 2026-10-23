@@ -41,7 +41,7 @@ Nothing is printed when it works. This only lasts for the terminal you ran it in
 python seed.py
 ```
 
-This creates the `plant_nursery` database, creates the tables, and loads the sample data. It ends with a line starting `Nursery System: 6 plants, 3 customers...`. Running it again clears the tables and loads the same sample. If you set the project up before `payments` had a `recorded_at` column, run it again so the table is rebuilt with the column. It clears the data, so it is the same as starting from the sample.
+This creates the `plant_nursery` database, creates the tables, and loads the sample data. It ends with a line starting `Nursery System: 6 plants, 3 customers...`. Running it again clears the tables and loads the same sample. If you set the project up with an earlier version, the `payments` table has different columns (`recorded_at`, and `card_last4` in place of `card_number`). The website refuses to start on it, with a message saying so, and running `python seed.py` rebuilds the tables. That clears the data and loads the sample again.
 
 ### 4. Start the website
 
@@ -84,8 +84,8 @@ The sample covers every part of the site: a sold-out cactus, Avril's lavender or
 
 The tests come in three kinds.
 
-- **Unit tests** need no PostgreSQL server. `tests/test_business_rules.py` checks the classes one at a time. `tests/test_system_rules.py` checks the rules in `NurserySystem` itself, such as the order refusals, removing plants and customers, the price bands, the revenue periods, who may see what, and a receipt after a later payment. It runs the real tables in a throwaway in-memory database, so nothing is saved anywhere.
-- **Integration tests** sign in through the web pages and save into PostgreSQL. `tests/test_workflows.py` follows an order, a counter sale, and the reports from start to finish. `tests/test_validation.py` checks the forms that refuse bad input. `tests/test_error_pages.py` checks the 404, 405, and 500 pages, that a crash part way through a request saves nothing, and the reason shown for each removal and payment refusal. These pages are checked by what a person would read on them (the words, the labelled values, and the table rows), so changing a tag, a class, or the spacing in a template does not break a test. Changing what a page says does. Photos uploaded by these tests go to a temporary folder, so `view/static/images` is never written to.
+- **Unit tests** need no PostgreSQL server. `tests/test_business_rules.py` checks the classes one at a time. `tests/test_payment_validation.py` checks the card number, expiry, bank name, and payment date rules and that only four digits are kept. `tests/test_database_check.py` checks that a database from an older version is refused with the fix. `tests/test_system_rules.py` checks the rules in `NurserySystem` itself, such as the order refusals, removing plants and customers, the price bands, the revenue periods, who may see what, and a receipt after a later payment. It runs the real tables in a throwaway in-memory database, so nothing is saved anywhere.
+- **Integration tests** sign in through the web pages and save into PostgreSQL. `tests/test_workflows.py` follows an order, a counter sale, and the reports from start to finish. `tests/test_validation.py` checks the forms that refuse bad input, including the payment form. `tests/test_error_pages.py` checks the 404, 405, and 500 pages, that a crash part way through a request saves nothing, and the reason shown for each removal and payment refusal. These pages are checked by what a person would read on them (the words, the labelled values, and the table rows), so changing a tag, a class, or the spacing in a template does not break a test. Changing what a page says does. Photos uploaded by these tests go to a temporary folder, so `view/static/images` is never written to.
 - **Concurrency tests**, in `tests/test_concurrency.py`, open two database sessions at once, like two staff at two screens, and check that they cannot sell the same stock twice.
 
 To run one file:
@@ -93,13 +93,15 @@ To run one file:
 ```bash
 python -m pytest tests/test_business_rules.py
 python -m pytest tests/test_system_rules.py
+python -m pytest tests/test_payment_validation.py
+python -m pytest tests/test_database_check.py
 python -m pytest tests/test_workflows.py
 python -m pytest tests/test_validation.py
 python -m pytest tests/test_error_pages.py
 python -m pytest tests/test_concurrency.py
 ```
 
-The first two do not need PostgreSQL to be running, and neither do the 404 and 405 tests in `test_error_pages.py`. The rest do.
+The first four do not need PostgreSQL to be running, and neither do the 404 and 405 tests in `test_error_pages.py`. The rest do.
 
 ## Design Decisions
 
@@ -123,7 +125,20 @@ Trees, shrubs, and perennials are both sold per plant, so `sale_unit()` returnin
 
 Staff and students share the $100 limit and may collect while they still owe money. That behaviour is `can_place_order()` and `can_collect_order()` on `UniversityCustomer`. `StaffCustomer` and `StudentCustomer` only supply the type name and the discount rate. `CommunityCustomer` stays a direct subclass of `Customer` because its rules are different: one pending order, and the order must be paid off before collection.
 
-Both card payments need a card number, so the attribute, the required-value check, and the getter are on `Payment`. `CreditCardPayment` adds the expiry date and a 1.5% surcharge. `DebitCardPayment` adds the bank name and no surcharge.
+Both card payments need a card number, so the check on it and the last four digits are on `Payment`. `CreditCardPayment` adds the expiry date and a 1.5% surcharge. `DebitCardPayment` adds the bank name and no surcharge.
+
+#### What a Payment Checks and Keeps
+
+The checks run when the payment is created, before anything is recorded, so a refused payment changes nothing.
+
+- The card number must be 13 to 19 digits. Spaces and dashes are allowed, so `1111 2222 3333 4444` works, and are ignored. Letters, symbols, and empty boxes are refused. It is not checked as a real card number (see the assumptions).
+- A credit card expiry must be `MM-YY` with a month from 01 to 12, such as `09-28`. `whenever`, `13-28`, and `9-28` are refused. A card works until the end of the month on it, so an expiry of `10-25` is fine for a payment on 31 October 2025 and expired for one on 1 November. The expiry is compared with the payment date, not with today, so an old payment can still be recorded.
+- A debit card needs a bank name of at most 100 characters.
+- The payment date cannot be in the future. Today and earlier are fine.
+
+Only the last four digits of the card are kept. `Payment` works out `card_last4` and drops the rest, so the full number is never an attribute of the payment, is not in the `payments` table, and cannot appear in a printout or a log. The column is `card_last4`, and a check constraint holds it to four characters. A receipt or payment record does not need more than that to tell two cards apart.
+
+The payment form on an order page shows only the field that goes with the method chosen: the expiry date for a credit card and the bank for a debit card. The hidden one is disabled, so it is not sent. Without JavaScript both show, and the server uses the one that matches the method. The browser also checks the card number and expiry pattern before sending, but the model does not rely on that, because a form can be submitted without the page.
 
 A subclass does not define `__init__` when it would only pass the same arguments to its parent. `UniversityCustomer`, `IndividualPlant`, `StaffCustomer`, `StudentCustomer`, `CommunityCustomer`, `TreeAndShrub`, and `Perennial` are created by the initialiser they inherit. `PotPlant`, `VegetableSeedling`, `CreditCardPayment`, and `DebitCardPayment` do define `__init__`, because each one adds and checks something of its own.
 
@@ -247,7 +262,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 
 ### Payment
 
-- Card number, expiry date, and bank name just need to be given, Brent did not specify a format.
+- Brent did not specify a format for card details, so a card number is 13 to 19 digits, a credit card expiry is `MM-YY` and not already passed on the payment date, and a debit card needs a bank name. A payment date cannot be in the future.
 - The 1.5% surcharge is added to what the customer pays, the order only comes down by the amount applied to it. The rate is `CREDIT_CARD_SURCHARGE_RATE`. A debit card uses `DEBIT_CARD_SURCHARGE_RATE`, which is 0.
 
 ### Login and the Website
@@ -263,7 +278,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 - A plant that has been on any order, including a cancelled order, cannot be removed. A customer who has placed any order cannot be removed. A customer who has never ordered has their login removed with them.
 - Popularity counts the quantity on orders that are not cancelled. A plant that has never been ordered is included with a count of 0. Cancelled orders still appear in a plant's order history.
 - Revenue is the amount charged, so a credit card surcharge is included. A week is the chosen date and the next six days. A month is the calendar month that contains the chosen date.
-- Card numbers are stored as they were typed. Brent did not ask for them to be hidden or checked as real card numbers.
+- Only the last four digits of a card number are stored, because nothing in the nursery needs the rest. The number is not checked against the card checksum (Luhn), so a made-up 16-digit number is accepted, which keeps the sample and test cards usable. Real card handling would also need a payment provider, which this assignment does not use.
 - The invoice and the receipt are printed from those pages, through the browser's print dialog. The buttons and the navigation are left off the printed page.
 
 ## Requirements Covered from Brent's Notes
@@ -295,7 +310,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 
 ### Payment Requirements
 
-- A payment has to be a `CreditCardPayment` or a `DebitCardPayment`. `Payment` is abstract and stores the ID, the amount applied to the order, the customer, the order, the date, and the card number. Credit adds `expiry_date` and `CREDIT_CARD_SURCHARGE_RATE` (0.015). Debit adds `bank_name` and a surcharge of 0. `amount_charged()` is `amount * (1 + surcharge_rate())`, so the surcharge is what the customer pays, not an extra reduction of the order.
+- A payment has to be a `CreditCardPayment` or a `DebitCardPayment`. `Payment` is abstract and stores the ID, the amount applied to the order, the customer, the order, the date, and the last four digits of the card. Credit adds `expiry_date` and `CREDIT_CARD_SURCHARGE_RATE` (0.015). Debit adds `bank_name` and a surcharge of 0. Only the last four digits of the card are kept. `amount_charged()` is `amount * (1 + surcharge_rate())`, so the surcharge is what the customer pays, not an extra reduction of the order.
 - `Order.record_payment()` rejects an amount that is not greater than 0 or is more than `remaining_balance`. Calling it again is allowed, so one order can be settled in parts. Each call adds to `amount_paid` and calls `reduce_balance()`.
 - `NurserySystem.record_payment()` records the payment only after the registration and ownership checks. `get_customer_payments()`, `get_order_payments()`, and `display_all_payments()` are the three views Brent asked for: one customer, one order, and every payment.
 
@@ -345,7 +360,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 - Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
 - `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
 - `LoginFailedError` and `NotAuthorisedError` are the two login exceptions, and `PlantInUseError`, `CustomerInUseError`, `OverpaymentError`, and `OrderNotPayableError` are the four removal and payment exceptions. The controllers flash those, and the original four, with the message the model raised. `controller/blueprint.py` also registers error pages for 404, 405, and 500, drawn by `view/templates/error.html`.
-- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_system_rules.py` holds the unit tests for `NurserySystem`: the `LoginFailedError` and `NotAuthorisedError` cases for every team-only and own-account-only action, every refusal when placing an order, the plant and customer removal refusals, the price bands at $10 and $30, the revenue day, week, and month edges, and a receipt that still shows the earlier balance after a later payment. It also covers the four removal and payment exceptions, including that a cancelled or paid order is not reported as an overpayment. It uses an in-memory database, so it needs no PostgreSQL server. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. `tests/test_error_pages.py` holds the tests for the 404, 405, and 500 pages, for a failed request saving nothing, and for the reason shown with each removal and payment refusal. The integration tests read pages through `tests/web.py`, which gives them the words, labelled values, and table rows on a page instead of its HTML, and they save uploaded photos to a temporary folder.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_system_rules.py` holds the unit tests for `NurserySystem`: the `LoginFailedError` and `NotAuthorisedError` cases for every team-only and own-account-only action, every refusal when placing an order, the plant and customer removal refusals, the price bands at $10 and $30, the revenue day, week, and month edges, and a receipt that still shows the earlier balance after a later payment. It also covers the four removal and payment exceptions, including that a cancelled or paid order is not reported as an overpayment. It uses an in-memory database, so it needs no PostgreSQL server. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. `tests/test_payment_validation.py` holds the tests for what a payment accepts (card number length and characters, `MM-YY` expiry and the end-of-month edge, future payment dates, bank name length) and keeps (the last four digits only). `tests/test_database_check.py` holds the tests that a database from an older version is refused with a message saying to run `python seed.py`. `tests/test_error_pages.py` holds the tests for the 404, 405, and 500 pages, for a failed request saving nothing, and for the reason shown with each removal and payment refusal. The integration tests read pages through `tests/web.py`, which gives them the words, labelled values, and table rows on a page instead of its HTML, and they save uploaded photos to a temporary folder.
 
 ## Generative AI
 

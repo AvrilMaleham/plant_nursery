@@ -10,12 +10,13 @@ from io import BytesIO
 from pathlib import Path
 
 from flask.testing import FlaskClient
+from sqlalchemy import text
 
 from model.customer import CommunityCustomer
 from model.database import session_scope
 from model.nursery_system import NurserySystem
 from model.plant import Perennial, TreeAndShrub
-from web import PHOTO, login, page
+from web import PHOTO, Page, login, page, referred_from
 
 
 def test_blank_names_and_bad_quantities_are_refused(
@@ -126,3 +127,88 @@ def test_blank_names_and_bad_quantities_are_refused(
             follow_redirects=True,
         )
         assert "Order placed." in page(placed)
+
+
+def test_the_payment_form_refuses_junk_cards_and_keeps_four_digits(
+    client: FlaskClient,
+) -> None:
+    """
+    A card number, expiry, or bank that cannot be real is refused with a
+    reason and records nothing. A good payment goes through, and only the
+    last four digits of the card reach the database.
+    """
+    with session_scope() as session:
+        system = NurserySystem(session)
+        system.add_user("teamUsername", "TeamPassword", "team")
+        system.login("teamUsername", "TeamPassword")
+        rose = TreeAndShrub("Rose", 15.99, 10, "rose.png")
+        system.add_plant(rose)
+        sam = CommunityCustomer("Sam", cust_email="sam@email.com")
+        system.add_customer(sam)
+        order = system.place_order(sam, [(rose, 2)])
+        order_path = f"/orders/{order.order_id}"
+        owed = f"${order.remaining_balance:.2f}"
+
+    login(client, "teamUsername", "TeamPassword")
+
+    def attempt(**fields: str) -> Page:
+        """Submit the payment form and read the page that comes back."""
+        form = {"amount": "5.00", "method": "debit card"}
+        form.update(fields)
+        return page(client.post(
+            f"{order_path}/pay",
+            data=form,
+            headers=referred_from(order_path),
+            follow_redirects=True,
+        ))
+
+    debit = {"bank_name": "ANZ"}
+    credit = {"method": "credit card", "expiry_date": "12-28"}
+    refusals = (
+        ({"card_number": "banana", **debit}, "can only contain digits"),
+        ({"card_number": "1234", **debit}, "13 to 19 digits"),
+        ({"card_number": "", **debit}, "Card number is required"),
+        (
+            {"card_number": "1111222233334444", "bank_name": "  "},
+            "Bank name is required",
+        ),
+        (
+            {"card_number": "1111222233334444", **credit,
+             "expiry_date": "whenever"},
+            "as MM-YY",
+        ),
+        (
+            {"card_number": "1111222233334444", **credit,
+             "expiry_date": "13-28"},
+            "as MM-YY",
+        ),
+        (
+            {"card_number": "1111222233334444", **credit,
+             "expiry_date": "01-20"},
+            "expired in 01-20",
+        ),
+        (
+            {"card_number": "1111222233334444", **credit,
+             "expiry_date": ""},
+            "Expiry date is required",
+        ),
+    )
+    for fields, reason in refusals:
+        assert reason in attempt(**fields), fields
+
+    # Nothing was recorded by any of them.
+    assert page(client.get(order_path)).value("Outstanding") == owed
+    assert "No payments yet." in page(client.get("/payments"))
+
+    # Groups of digits are fine, and the receipt does not carry the card.
+    receipt = attempt(card_number="1111 2222 3333 4444", **debit)
+    assert "Payment recorded." in receipt
+    assert "1111222233334444" not in receipt
+    assert "1111 2222 3333 4444" not in receipt
+
+    with session_scope() as session:
+        saved = session.execute(
+            text("SELECT * FROM payments")
+        ).mappings().all()
+    assert [row["card_last4"] for row in saved] == ["4444"]
+    assert "1111222233334444" not in str(list(saved[0].values()))

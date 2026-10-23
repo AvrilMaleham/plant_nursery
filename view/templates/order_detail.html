@@ -102,16 +102,46 @@
         </select>
       </label>
       <label>Card number
-        <input name="card_number" required>
+        <input name="card_number" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="1234 5678 9012 3456" pattern="[0-9 \-]{13,23}" title="The 13 to 19 digits on the card. Spaces and dashes are fine." required>
       </label>
-      <label>Expiry date
-        <input name="expiry_date" placeholder="MM-YY">
+      {# Each of these is only for one method. The script at the bottom of the
+         page shows the one that matches the method chosen. Without
+         JavaScript both stay visible, and the server uses the right one. #}
+      <label data-method="credit card">Expiry date
+        <input name="expiry_date" autocomplete="cc-exp" maxlength="5" placeholder="MM-YY" pattern="(0[1-9]|1[0-2])-[0-9]{2}" title="The month and year on the card as MM-YY, for example 09-28">
       </label>
-      <label>Bank
-        <input name="bank_name">
+      <label data-method="debit card">Bank
+        <input name="bank_name" maxlength="100">
       </label>
-      <p class="hint">Credit cards use the expiry date. Debit cards use the bank. A credit card adds a surcharge on the receipt. The order is reduced by the amount paid.</p>
+      <p class="hint">Credit cards use the expiry date. Debit cards use the bank. A credit card adds a surcharge on the receipt. The order is reduced by the amount paid. Only the last four digits of the card number are kept.</p>
       <button type="submit">{% if is_team %}Record payment{% else %}Pay{% endif %}</button>
     </form>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {% if can_pay %}
+    <script>
+      // Show the expiry date for a credit card and the bank for a debit card.
+      // The hidden one is also disabled, so it is not sent or required.
+      (function () {
+        var method = document.querySelector('select[name="method"]');
+        var groups = document.querySelectorAll('[data-method]');
+        function showMatching() {
+          groups.forEach(function (group) {
+            var wanted = group.getAttribute('data-method') === method.value;
+            var input = group.querySelector('input');
+            group.hidden = !wanted;
+            input.disabled = !wanted;
+            input.required = wanted;
+          });
+        }
+        method.addEventListener('change', showMatching);
+        // The browser can restore an earlier choice when the page is shown
+        // again, so check on load and when it comes back from the cache.
+        window.addEventListener('pageshow', showMatching);
+        showMatching();
+      })();
+    </script>
   {% endif %}
 {% endblock %}

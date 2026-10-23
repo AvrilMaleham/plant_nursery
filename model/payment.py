@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date, datetime
 from typing import Optional
@@ -20,6 +21,14 @@ from .order import Order
 CREDIT_CARD_SURCHARGE_RATE = 0.015
 DEBIT_CARD_SURCHARGE_RATE = 0.0
 
+# Card numbers are 13 to 19 digits long. Only the last four are kept.
+MIN_CARD_DIGITS = 13
+MAX_CARD_DIGITS = 19
+CARD_DIGITS_KEPT = 4
+# MM-YY with a two-digit month from 01 to 12, as the payment form asks.
+EXPIRY_PATTERN = re.compile(r"(0[1-9]|1[0-2])-(\d{2})")
+MAX_BANK_NAME_LENGTH = 100
+
 
 class Payment(Base):
     """
@@ -30,6 +39,9 @@ class Payment(Base):
     __tablename__ = "payments"
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_payments_amount"),
+        CheckConstraint(
+            "length(card_last4) = 4", name="ck_payments_card_last4"
+        ),
         CheckConstraint(
             "payment_type <> 'credit card' OR expiry_date IS NOT NULL",
             name="ck_payments_expiry",
@@ -71,8 +83,10 @@ class Payment(Base):
     _amount: Mapped[float] = mapped_column(
         "amount", Numeric(10, 2), nullable=False
     )
-    _card_number: Mapped[str] = mapped_column(
-        "card_number", String(30), nullable=False
+    # Only the last four digits of the card are stored, never the whole
+    # number. A receipt and a payment record do not need more than that.
+    _card_last4: Mapped[str] = mapped_column(
+        "card_last4", String(4), nullable=False
     )
     _payment_date: Mapped[str] = mapped_column(
         "payment_date", String(10), nullable=False
@@ -128,33 +142,35 @@ class Payment(Base):
         :param order (Order): The order this payment is toward
         :param amount (float): Amount applied to the order, must be greater
             than 0
-        :param card_number (str): Card number for this payment
+        :param card_number (str): The full card number, as typed. It is
+            checked here, and only its last four digits are kept
         :param payment_date (Optional[str]): Optional payment date in
-            DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number is
-            missing, or the payment date is invalid
+            DD-MM-YYYY format, defaults to today. It cannot be in the future
+        :raises ValueError: If amount is not greater than 0, the card number
+            is missing or is not 13 to 19 digits, or the payment date is
+            invalid or in the future
         """
         if amount <= 0:
             raise ValueError("Payment amount must be greater than 0")
-        # Both credit and debit payments record a card number, so the check
-        # lives here.
-        if not card_number:
-            raise ValueError("Card number is required")
+        # Both credit and debit payments record a card, so the check lives
+        # here.
+        digits = self.__clean_card_number(card_number)
+        paid_on = self._parse_payment_date(payment_date)
 
         # UUID keeps payment IDs unique without a running counter.
         self._payment_id = uuid.uuid4()
         self._customer = customer
         self._order = order
         self._amount = round(amount, 2)
-        self._card_number = card_number
-        if payment_date is None:
-            payment_date = date.today().strftime("%d-%m-%Y")
-        self._payment_date = self.__validate_payment_date(payment_date)
+        # The full number is not kept on the object, so it cannot be saved or
+        # printed by accident later.
+        self._card_last4 = digits[-CARD_DIGITS_KEPT:]
+        self._payment_date = paid_on.strftime("%d-%m-%Y")
         self._recorded_at = datetime.now()
 
     # ---------- Getters and Setters ----------
     # A recorded payment is a snapshot. ID, customer, order, amount, card
-    # number, and date are not changed after creation.
+    # digits, and date are not changed after creation.
 
     @property
     def payment_id(self) -> uuid.UUID:
@@ -212,32 +228,65 @@ class Payment(Base):
         return self._recorded_at
 
     @property
-    def card_number(self) -> str:
+    def card_last4(self) -> str:
         """
-        Get the card number
+        Get the last four digits of the card. The rest is not stored.
 
-        :return (str): The card number
+        :return (str): The last four digits of the card number
         """
-        return self._card_number
+        return self._card_last4
 
     # ---------- Methods ----------
 
-    def __validate_payment_date(self, payment_date: str) -> str:
+    @staticmethod
+    def __clean_card_number(card_number: str) -> str:
         """
-        Validate that the payment date is a real calendar date in DD-MM-YYYY
-        format
+        Check a card number and return just its digits
 
-        :param payment_date (str): Date string to validate
-        :return (str): The validated date string
-        :raises ValueError: If the date is not a valid calendar date in
-            DD-MM-YYYY format
+        :param card_number (str): The card number as typed. Spaces and dashes
+            are allowed between the digits
+        :return (str): The digits of the card number
+        :raises ValueError: If it is missing, has anything but digits, spaces,
+            and dashes in it, or is not 13 to 19 digits long
         """
+        if not isinstance(card_number, str) or not card_number.strip():
+            raise ValueError("Card number is required")
+        digits = card_number.replace(" ", "").replace("-", "")
+        if not digits:
+            raise ValueError("Card number is required")
+        # isascii() because isdigit() also accepts digits from other scripts.
+        if not (digits.isascii() and digits.isdigit()):
+            raise ValueError(
+                "Card number can only contain digits, spaces, and dashes")
+        if not MIN_CARD_DIGITS <= len(digits) <= MAX_CARD_DIGITS:
+            raise ValueError(
+                f"Card number must have {MIN_CARD_DIGITS} to "
+                f"{MAX_CARD_DIGITS} digits")
+        return digits
+
+    @staticmethod
+    def _parse_payment_date(payment_date: Optional[str]) -> date:
+        """
+        Check a payment date and return it as a date
+
+        :param payment_date (Optional[str]): Date string in DD-MM-YYYY format,
+            or None for today
+        :return (date): The payment date
+        :raises ValueError: If the date is not a valid calendar date in
+            DD-MM-YYYY format, or is in the future
+        """
+        if payment_date is None:
+            return date.today()
         try:
-            datetime.strptime(payment_date, "%d-%m-%Y")
-        except ValueError:
+            paid_on = datetime.strptime(payment_date, "%d-%m-%Y").date()
+        except (TypeError, ValueError):
             raise ValueError(
                 "Payment date must be a valid date in DD-MM-YYYY format")
-        return payment_date
+        # A payment is recorded when it is taken, so it cannot be ahead of
+        # today.
+        if paid_on > date.today():
+            raise ValueError("Payment date cannot be in the future")
+        return paid_on
 
     def amount_charged(self) -> float:
         """
@@ -273,12 +322,12 @@ class Payment(Base):
         """
         return (
             "Payment ID: {}, Payment Type: {}, Amount: {}, Amount Charged: {},"
-            " Customer: {}, Order ID: {}, Payment Date: {}"
+            " Customer: {}, Order ID: {}, Payment Date: {}, Card ending: {}"
             .format(
                 self.payment_id, self.payment_type(),
                 self.amount, self.amount_charged(),
                 self.customer.cust_name, self.order.order_id,
-                self.payment_date,
+                self.payment_date, self.card_last4,
             )
         )
 
@@ -310,17 +359,48 @@ class CreditCardPayment(Payment):
         :param amount (float): Amount applied to the order, must be greater
             than 0
         :param card_number (str): Credit card number
-        :param expiry_date (str): Card expiry date
+        :param expiry_date (str): Card expiry date as MM-YY. The card is good
+            until the end of that month
         :param payment_date (Optional[str]): Optional payment date in
             DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number or
-            expiry is missing, or the payment date is invalid
+        :raises ValueError: If amount is not greater than 0, the card number
+            is missing or not 13 to 19 digits, the expiry is missing, is not
+            a real MM-YY, or has passed by the payment date, or the payment
+            date is invalid or in the future
         """
-        if not expiry_date:
-            raise ValueError("Expiry date is required")
+        expiry = self.__clean_expiry(expiry_date, payment_date)
 
         super().__init__(customer, order, amount, card_number, payment_date)
-        self._expiry_date = expiry_date
+        self._expiry_date = expiry
+
+    @classmethod
+    def __clean_expiry(
+        cls, expiry_date: str, payment_date: Optional[str]
+    ) -> str:
+        """
+        Check an expiry date against the day the payment is made
+
+        :param expiry_date (str): The expiry as typed, in MM-YY form
+        :param payment_date (Optional[str]): The payment date in DD-MM-YYYY
+            form, or None for today
+        :return (str): The expiry, with any spaces around it removed
+        :raises ValueError: If it is missing, is not MM-YY with a month from
+            01 to 12, or the card had expired by the payment date
+        """
+        if not isinstance(expiry_date, str) or not expiry_date.strip():
+            raise ValueError("Expiry date is required")
+        expiry = expiry_date.strip()
+        found = EXPIRY_PATTERN.fullmatch(expiry)
+        if found is None:
+            raise ValueError(
+                "Expiry date must be a month and year as MM-YY, "
+                "such as 09-28")
+        paid_on = cls._parse_payment_date(payment_date)
+        month, year = int(found.group(1)), 2000 + int(found.group(2))
+        # A card works until the end of the month printed on it.
+        if (year, month) < (paid_on.year, paid_on.month):
+            raise ValueError(f"This card expired in {expiry}")
+        return expiry
 
     @property
     def expiry_date(self) -> str:
@@ -353,8 +433,8 @@ class CreditCardPayment(Payment):
 
         :return (str): A readable string of the credit card payment details
         """
-        return "{}, Card Number: {}, Expiry Date: {}".format(
-            super().__str__(), self.card_number, self.expiry_date
+        return "{}, Expiry Date: {}".format(
+            super().__str__(), self.expiry_date
         )
 
 
@@ -387,14 +467,21 @@ class DebitCardPayment(Payment):
         :param bank_name (str): Name of the bank the card is with
         :param payment_date (Optional[str]): Optional payment date in
             DD-MM-YYYY format, defaults to today
-        :raises ValueError: If amount is not greater than 0, card number or
-            bank name is missing, or the payment date is invalid
+        :raises ValueError: If amount is not greater than 0, the card number
+            is missing or not 13 to 19 digits, the bank name is missing or
+            longer than 100 characters, or the payment date is invalid or in
+            the future
         """
-        if not bank_name:
+        bank = bank_name.strip() if isinstance(bank_name, str) else ""
+        if not bank:
             raise ValueError("Bank name is required")
+        if len(bank) > MAX_BANK_NAME_LENGTH:
+            raise ValueError(
+                f"Bank name must be {MAX_BANK_NAME_LENGTH} characters or "
+                "fewer")
 
         super().__init__(customer, order, amount, card_number, payment_date)
-        self._bank_name = bank_name
+        self._bank_name = bank
 
     @property
     def bank_name(self) -> str:
@@ -427,6 +514,4 @@ class DebitCardPayment(Payment):
 
         :return (str): A readable string of the debit card payment details
         """
-        return "{}, Card Number: {}, Bank: {}".format(
-            super().__str__(), self.card_number, self.bank_name
-        )
+        return "{}, Bank: {}".format(super().__str__(), self.bank_name)

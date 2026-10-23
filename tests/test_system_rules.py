@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import Callable
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import app
@@ -642,6 +643,46 @@ def test_payments_are_checked_against_the_order(
     assert world.sam_order.amount_paid == 0.0
 
 
+def test_only_the_last_four_card_digits_reach_the_database(
+    world: SimpleNamespace, memory_session: Session
+) -> None:
+    """The saved payment row has no full card number in any column."""
+    nursery = world.system
+    nursery.record_payment(
+        DebitCardPayment(
+            world.sam,
+            world.sam_order,
+            10.00,
+            "1111 2222 3333 4444",
+            "ANZ",
+            day(),
+        )
+    )
+    nursery.record_payment(
+        CreditCardPayment(
+            world.sam,
+            world.sam_order,
+            10.00,
+            "5555-6666-7777-8888",
+            "12-28",
+            day(),
+        )
+    )
+    memory_session.flush()
+
+    rows = memory_session.execute(
+        text("SELECT * FROM payments ORDER BY recorded_at")
+    ).mappings().all()
+    assert [row["card_last4"] for row in rows] == ["4444", "8888"]
+    assert "card_number" not in rows[0].keys()
+    saved = " ".join(str(value) for row in rows for value in row.values())
+    for whole in ("1111222233334444", "5555666677778888"):
+        assert whole not in saved
+    # A receipt is built without the card number, and still has everything.
+    first = nursery.get_order_payments(world.sam_order)[0]
+    assert nursery.receipt_for(first).amount == 10.00
+
+
 def test_a_cancelled_order_cannot_be_paid(world: SimpleNamespace) -> None:
     """A cancelled order says it was cancelled. It does not say the payment
     was too large."""
@@ -947,9 +988,9 @@ def test_revenue_for_a_day_counts_only_that_day(
     pay_on(
         system,
         big_order,
-        {"14-10-2026": 1, "15-10-2026": 10, "16-10-2026": 100},
+        {"14-10-2025": 1, "15-10-2025": 10, "16-10-2025": 100},
     )
-    assert system.revenue("day", "15-10-2026") == 10.00
+    assert system.revenue("day", "15-10-2025") == 10.00
 
 
 def test_revenue_for_a_week_is_seven_days_from_the_date(
@@ -961,13 +1002,13 @@ def test_revenue_for_a_week_is_seven_days_from_the_date(
         system,
         big_order,
         {
-            "14-10-2026": 1,
-            "15-10-2026": 10,
-            "21-10-2026": 100,
-            "22-10-2026": 500,
+            "14-10-2025": 1,
+            "15-10-2025": 10,
+            "21-10-2025": 100,
+            "22-10-2025": 500,
         },
     )
-    assert system.revenue("week", "15-10-2026") == 110.00
+    assert system.revenue("week", "15-10-2025") == 110.00
 
 
 def test_revenue_for_a_month_runs_from_the_first_to_the_last_day(
@@ -978,15 +1019,15 @@ def test_revenue_for_a_month_runs_from_the_first_to_the_last_day(
         system,
         big_order,
         {
-            "30-09-2026": 1,
-            "01-10-2026": 10,
-            "31-10-2026": 100,
-            "01-11-2026": 200,
+            "30-09-2025": 1,
+            "01-10-2025": 10,
+            "31-10-2025": 100,
+            "01-11-2025": 200,
         },
     )
-    assert system.revenue("month", "15-10-2026") == 110.00
-    assert system.revenue("month", "01-10-2026") == 110.00
-    assert system.revenue("month", "31-10-2026") == 110.00
+    assert system.revenue("month", "15-10-2025") == 110.00
+    assert system.revenue("month", "01-10-2025") == 110.00
+    assert system.revenue("month", "31-10-2025") == 110.00
 
 
 def test_revenue_for_a_month_handles_december_and_leap_years(
@@ -997,31 +1038,31 @@ def test_revenue_for_a_month_handles_december_and_leap_years(
         system,
         big_order,
         {
-            "31-12-2026": 10,
-            "01-01-2027": 1,
-            "28-02-2027": 20,
-            "01-03-2027": 2,
-            "29-02-2028": 30,
-            "01-03-2028": 3,
+            "31-12-2024": 10,
+            "01-01-2025": 1,
+            "28-02-2025": 20,
+            "01-03-2025": 2,
+            "29-02-2024": 30,
+            "01-03-2024": 3,
         },
     )
-    assert system.revenue("month", "01-12-2026") == 10.00
-    assert system.revenue("month", "10-02-2027") == 20.00
-    assert system.revenue("month", "10-02-2028") == 30.00
+    assert system.revenue("month", "01-12-2024") == 10.00
+    assert system.revenue("month", "10-02-2025") == 20.00
+    assert system.revenue("month", "10-02-2024") == 30.00
 
 
 def test_revenue_includes_the_card_surcharge(
     system: NurserySystem, big_order: Order
 ) -> None:
     """Revenue is what was charged, so a credit card adds 1.5%."""
-    pay(system, big_order, 100.00, "15-10-2026", credit=True)
-    pay(system, big_order, 100.00, "15-10-2026")
-    assert system.revenue("day", "15-10-2026") == 201.50
+    pay(system, big_order, 100.00, "15-10-2025", credit=True)
+    pay(system, big_order, 100.00, "15-10-2025")
+    assert system.revenue("day", "15-10-2025") == 201.50
 
 
 def test_revenue_with_nothing_paid_is_zero(system: NurserySystem) -> None:
     """A quiet period totals $0.00."""
-    assert system.revenue("month", "15-10-2026") == 0.0
+    assert system.revenue("month", "15-10-2025") == 0.0
 
 
 def test_revenue_rejects_a_bad_period_or_date(system: NurserySystem) -> None:
@@ -1053,9 +1094,9 @@ def test_an_earlier_receipt_still_shows_the_balance_at_that_time(
     system: NurserySystem, forty_dollar_order: Order
 ) -> None:
     """Later payments do not change what an earlier receipt says is left."""
-    first = pay(system, forty_dollar_order, 10.00, "10-10-2026")
-    second = pay(system, forty_dollar_order, 20.00, "10-10-2026", True)
-    third = pay(system, forty_dollar_order, 10.00, "10-10-2026")
+    first = pay(system, forty_dollar_order, 10.00, "10-10-2025")
+    second = pay(system, forty_dollar_order, 20.00, "10-10-2025", True)
+    third = pay(system, forty_dollar_order, 10.00, "10-10-2025")
 
     assert system.receipt_for(first).remaining_on_order == 30.00
     assert system.receipt_for(second).remaining_on_order == 10.00
@@ -1075,8 +1116,8 @@ def test_receipts_follow_the_payment_date_not_the_order_entered(
     system: NurserySystem, forty_dollar_order: Order
 ) -> None:
     """A payment dated earlier counts first, even if it was entered later."""
-    entered_first = pay(system, forty_dollar_order, 10.00, "05-10-2026")
-    entered_second = pay(system, forty_dollar_order, 20.00, "01-10-2026")
+    entered_first = pay(system, forty_dollar_order, 10.00, "05-10-2025")
+    entered_second = pay(system, forty_dollar_order, 20.00, "01-10-2025")
 
     assert system.get_order_payments(forty_dollar_order) == [
         entered_second,
@@ -1115,8 +1156,8 @@ def test_plant_history_includes_cancelled_orders_oldest_first(
     """A plant's history lists every order it was on, in date order."""
     rose = add_plant(system, "Rose", stock=50)
     avril = add_customer(system, StaffCustomer, "Avril")
-    newer = system.place_order(avril, [(rose, 1)], "10-10-2026")
-    older = system.place_order(avril, [(rose, 1)], "01-10-2026")
+    newer = system.place_order(avril, [(rose, 1)], "10-10-2025")
+    older = system.place_order(avril, [(rose, 1)], "01-10-2025")
     system.cancel_order(older)
 
     assert system.plant_order_history(rose) == [older, newer]
@@ -1128,19 +1169,19 @@ def test_customer_activity_lists_each_event_in_date_order(
     """Placed, paid, collected, and cancelled all appear, oldest first."""
     plant = add_plant(system, "Rose", stock=50)
     avril = add_customer(system, StaffCustomer, "Avril")
-    kept = system.place_order(avril, [(plant, 1)], "01-10-2026")
-    dropped = system.place_order(avril, [(plant, 1)], "02-10-2026")
-    system.cancel_order(dropped, "03-10-2026")
-    pay(system, kept, 5.00, "04-10-2026")
-    system.collect_order(kept, "05-10-2026")
+    kept = system.place_order(avril, [(plant, 1)], "01-10-2025")
+    dropped = system.place_order(avril, [(plant, 1)], "02-10-2025")
+    system.cancel_order(dropped, "03-10-2025")
+    pay(system, kept, 5.00, "04-10-2025")
+    system.collect_order(kept, "05-10-2025")
 
     records = system.customer_activity(avril)
     assert [(r.happened_on, r.action) for r in records] == [
-        ("01-10-2026", "placed"),
-        ("02-10-2026", "placed"),
-        ("03-10-2026", "cancelled"),
-        ("04-10-2026", "paid"),
-        ("05-10-2026", "collected"),
+        ("01-10-2025", "placed"),
+        ("02-10-2025", "placed"),
+        ("03-10-2025", "cancelled"),
+        ("04-10-2025", "paid"),
+        ("05-10-2025", "collected"),
     ]
 
 

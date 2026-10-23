@@ -93,6 +93,9 @@ form {
 
 label { display: grid; gap: 0.25rem; }
 
+/* Without this, the display rules above would show a hidden label anyway. */
+[hidden] { display: none; }
+
 input, select, button {
   font: inherit;
   color: inherit;
