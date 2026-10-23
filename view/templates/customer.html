@@ -11,18 +11,18 @@
     <dt>Phone</dt><dd>{{ customer.cust_phone or "None" }}</dd>
     <dt>Owes</dt><dd>${{ "%.2f"|format(customer.balance) }}</dd>
   </dl>
-  {% if is_team or allow_remove %}
-    <div class="actions">
-      {% if is_team %}
-        <a class="button" href="{{ url_for('nursery.place_order', customer_id=customer.cust_id) }}">Place an order for this customer</a>
-      {% endif %}
-      {% if allow_remove %}
-        <form class="inline" method="post" action="{{ url_for('nursery.remove_customer', customer_id=customer.cust_id) }}">
-          <button type="submit" class="danger">Remove this customer</button>
-        </form>
-      {% endif %}
-    </div>
-  {% endif %}
+
+  <div class="actions">
+    <a class="button" href="{{ url_for('nursery.edit_customer', customer_id=customer.cust_id) }}">Edit details</a>
+    {% if is_team %}
+      <a class="button" href="{{ url_for('nursery.place_order', customer_id=customer.cust_id) }}">Place an order for this customer</a>
+    {% endif %}
+    {% if allow_remove %}
+      <form class="inline" method="post" action="{{ url_for('nursery.remove_customer', customer_id=customer.cust_id) }}">
+        <button type="submit" class="danger">Remove this customer</button>
+      </form>
+    {% endif %}
+  </div>
 
   <h2>Orders</h2>
   {% if orders %}

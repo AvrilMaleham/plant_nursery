@@ -492,6 +492,48 @@ class NurserySystem:
         self.__session.flush()
         self.__session.delete(stored)
 
+    def update_customer(
+        self,
+        customer: Customer,
+        name: str,
+        email: str,
+        phone: str,
+    ) -> None:
+        """
+        Change a customer's name, email, and phone.
+
+        The team can change any customer. A customer can change their own.
+        The customer number and type stay as they are.
+
+        :param customer (Customer): The customer to update
+        :param name (str): New name
+        :param email (str): New email, or empty to clear it
+        :param phone (str): New phone, or empty to clear it
+        :raises NotAuthorisedError: If a customer tries to change someone else
+        :raises ValueError: If the customer is not registered, the name is
+            blank, or both contact methods would be empty
+        """
+        stored = self.find_customer(customer.cust_id)
+        new_name = name.strip()
+        new_email = email.strip() if email else ""
+        new_phone = phone.strip() if phone else ""
+        if not new_name:
+            raise ValueError("Name is required")
+        if not new_email and not new_phone:
+            raise ValueError(
+                "Please provide at least an email or a phone number"
+            )
+        stored.cust_name = new_name
+        # A contact method that will remain has to be written before the other
+        # is cleared. Otherwise swapping email for phone, or the other way
+        # around, fails the rule that one of them must stay.
+        if new_email:
+            stored.cust_email = new_email
+            stored.cust_phone = new_phone or None
+        else:
+            stored.cust_phone = new_phone
+            stored.cust_email = None
+
     def filter_customers(self, customer_type: str) -> list[Customer]:
         """
         Return customers of one type

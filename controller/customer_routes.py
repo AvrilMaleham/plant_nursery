@@ -12,7 +12,7 @@ from controller.blueprint import (
     signed_in,
     system,
 )
-from controller.parsing import text
+from controller.parsing import required_text, text
 from model.customer import CommunityCustomer, StaffCustomer, StudentCustomer
 from model.exceptions import NotAuthorisedError
 from model.user import CUSTOMER_ROLE
@@ -176,3 +176,63 @@ def remove_customer(customer_id: uuid.UUID) -> str:
         return explain(error)
     flash(f"{name} removed.", "success")
     return redirect(url_for("nursery.customers"))
+
+
+def customer_home(customer_id: uuid.UUID) -> str:
+    """
+    Return the page this person should land on after editing a customer.
+
+    :param customer_id (uuid.UUID): The customer being edited
+    :return (str): The customer page for the team, or My details for a customer
+    """
+    if not is_team():
+        return url_for("nursery.account")
+    return url_for("nursery.customer_detail", customer_id=customer_id)
+
+
+@nursery_bp.route("/customers/<uuid:customer_id>/edit", methods=["GET", "POST"])
+@signed_in
+def edit_customer(customer_id: uuid.UUID) -> str:
+    """
+    Change a customer's name, email, and phone.
+
+    :param customer_id (uuid.UUID): The customer to update
+    :return (str): The edit form, or that customer's page once it is saved
+    """
+    try:
+        customer = system().find_customer(customer_id)
+    except RULE_ERRORS as error:
+        return explain(error)
+
+    back_url = customer_home(customer.cust_id)
+    if request.method == "GET":
+        return render_template(
+            "customer_edit.html",
+            customer=customer,
+            back_url=back_url,
+            form={
+                "cust_name": customer.cust_name,
+                "cust_email": customer.cust_email or "",
+                "cust_phone": customer.cust_phone or "",
+            },
+        )
+
+    try:
+        system().update_customer(
+            customer,
+            required_text(request.form.get("cust_name"), "Name"),
+            text(request.form.get("cust_email")),
+            text(request.form.get("cust_phone")),
+        )
+    except RULE_ERRORS as error:
+        g.db.rollback()
+        return render_template(
+            "customer_edit.html",
+            customer=customer,
+            back_url=back_url,
+            error=str(error),
+            form=request.form,
+        )
+
+    flash(f"{customer.cust_name} updated.", "success")
+    return redirect(back_url)

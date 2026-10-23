@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ customer.cust_name }} · Plant Nursery{% endblock %}
+
+{% block content %}
+  <h1>Edit {{ customer.cust_name }}</h1>
+  <form method="post">
+    <label>Name
+      <input name="cust_name" value="{{ form.get('cust_name', '') }}" required>
+    </label>
+    <label>Email
+      <input name="cust_email" value="{{ form.get('cust_email', '') }}">
+    </label>
+    <label>Phone
+      <input name="cust_phone" value="{{ form.get('cust_phone', '') }}">
+    </label>
+    <p class="hint">At least one of email or phone is required. The customer number and type stay the same.</p>
+    <div class="actions">
+      <button type="submit">Save details</button>
+      <a class="button quiet" href="{{ back_url }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}
