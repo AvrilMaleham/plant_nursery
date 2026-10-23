@@ -6,7 +6,7 @@ This is a plant nursery management system that tracks plants, customers, orders,
 
 ## Getting started
 
-Do these steps in order, from this project folder. PostgreSQL must already be installed and running on this computer, on port 5432, before step 3. The installer asks you to choose a password. pgAdmin logs in with that same username and password. Use that username in the connection below.
+Do these steps in order, from this project folder. You need Python 3.10 or later (the code uses type hints such as `BaseException | None`, which Python 3.9 cannot read). Check with `python --version`. PostgreSQL must already be installed and running on this computer, on port 5432, before step 3. The installer asks you to choose a password. pgAdmin logs in with that same username and password. Use that username in the connection below.
 
 ### 1. Install the Python packages
 
@@ -82,7 +82,7 @@ The second command needs PostgreSQL running, because those tests create `plant_n
 
 ### Separation of Concerns
 
-Each entity and each collection has its own file. `Order`, `OrderItem`, `PlantCatalog`, `CustomerDirectory`, `OrderHistory`, and `PaymentHistory` are each in their own file because they do different jobs. A base class stays in the same file as the classes that inherit from it, because those types only make sense together: `plant.py` holds the plant hierarchy, `customer.py` holds the customer hierarchy, and `payment.py` holds the payment hierarchy. The four custom exceptions share `exceptions.py` so `Plant`, `Order`, and `NurserySystem` can import the same types.
+Each entity and each collection has its own file. `Order`, `OrderItem`, `PlantCatalog`, `CustomerDirectory`, `OrderHistory`, and `PaymentHistory` are each in their own file because they do different jobs. A base class stays in the same file as the classes that inherit from it, because those types only make sense together: `plant.py` holds the plant hierarchy, `customer.py` holds the customer hierarchy, and `payment.py` holds the payment hierarchy. The six custom exceptions (four for order rules, two for login and access) share `exceptions.py` so `Plant`, `Order`, and `NurserySystem` can import the same types.
 
 `NurserySystem` is the only object the rest of the application talks to. It checks that a customer and the plants are already registered, asks the customer whether a new order is allowed, and then adds the order to `OrderHistory`. That keeps registration and the business rules in one place, so an order cannot be created for someone who was never added, or left unrecorded.
 
@@ -106,7 +106,7 @@ A subclass does not define `__init__` when it would only pass the same arguments
 
 ### Order Rules are in the Customer Class, not the Order Class
 
-`Order` should not contain `if customer_type() == "staff"`. The rule belongs to the customer, and the three types do not share one rule. `NurserySystem.place_order()` asks `customer.can_place_order(pending_count)`. The pending count comes from `OrderHistory`, because a customer does not store their own orders. If the answer is no, the system raises `OrderNotAllowedError`. `Order.collect_order()` asks `customer.can_collect_order(remaining_balance)` and raises `OrderCannotBeCollectedError` when the answer is no. Adding another customer type would mean a new subclass, not a new branch inside `Order`.
+`Order` should not contain `if customer_type() == "staff"`. The rule belongs to the customer, and the three types do not share one rule. `NurserySystem.place_order()` prices the order first, then asks `customer.can_place_order(pending_count, order_total)`. The pending count comes from `OrderHistory`, because a customer does not store their own orders. The order total lets staff and students be refused when this order would take them over $100, and community customers ignore it. If the answer is no, the system raises `OrderNotAllowedError`. `Order.collect_order()` asks `customer.can_collect_order(remaining_balance)` and raises `OrderCannotBeCollectedError` when the answer is no. Adding another customer type would mean a new subclass, not a new branch inside `Order`.
 
 ### The Same Plant Can Only Appear Once in an Order
 
@@ -134,7 +134,7 @@ Everyone logs in with a username and password before they see a dashboard. `User
 
 `NurserySystem.login()` looks the username up and checks the password. A missing username and a wrong password both raise `LoginFailedError` with the same message, so the login page does not reveal which of the two failed. The controller then stores the user id in the session cookie. The next request calls `resume()`, and the role checks run as that person. Logging out clears the cookie. Pages are sent with `Cache-Control: no-store`, so the back button does not restore a logged-in page from the browser cache after logout.
 
-`__require_login()`, `__require_team()`, and `__require_self_or_team()` are the checks the other methods call first. A customer can see their own details, search plants, place an order, pay toward their own orders, cancel their own pending unpaid order, and open their own invoice and receipts. The team can add and remove plants and customers, change price and stock, place an order or take a payment for someone at the counter, see every customer, order, and payment, and open the reports. `collect_order()` calls `__require_team()` before it asks the order whether collection is allowed, because only the team can confirm the plants have left the nursery. The earlier rules still run after the role check. A community customer still cannot hold two pending orders, and still has to pay in full before collection. A staff member or student still cannot place another order once their balance is already over $100.
+`__require_login()`, `__require_team()`, and `__require_self_or_team()` are the checks the other methods call first. A customer can see their own details, search plants, place an order, pay toward their own orders, cancel their own pending unpaid order, and open their own invoice and receipts. The team can add and remove plants and customers, change price and stock, place an order or take a payment for someone at the counter, see every customer, order, and payment, and open the reports. `collect_order()` calls `__require_team()` before it asks the order whether collection is allowed, because only the team can confirm the plants have left the nursery. The earlier rules still run after the role check. A community customer still cannot hold two pending orders, and still has to pay in full before collection. A staff member or student still cannot place an order that would take what they owe over $100, so a balance of $90 blocks a $20 order but allows a $10 one.
 
 When the team adds a customer, the form also creates that customer's login through `add_user()`. A customer does not register themselves.
 
@@ -195,7 +195,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 
 - IDs are generated using UUID for simplicity.
 - Customer name, email, and phone can be updated after creation via setters. ID stays read only. At least one of email or phone must remain.
-- Staff and students are blocked when their current balance is already over $100, not when the new order would take them over. `UniversityCustomer.can_place_order()` compares `balance` with `CREDIT_LIMIT`.
+- Staff and students are blocked when the new order would take what they owe over $100, as Brent's final notes say, not only when they already owe more than $100. `UniversityCustomer.can_place_order()` compares `balance + order_total` with `CREDIT_LIMIT`. Owing exactly $100 after the order is allowed, because the limit is "over $100". A customer who already owes exactly $100 is blocked from any further order, since any order total is more than $0.
 
 ### Order
 
@@ -241,7 +241,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 - `CustomerDirectory.display_all_customers()` prints everyone. The three `display_*_customers()` methods print one type at a time, using `customer_type()`.
 - The discount comes off the whole order, after each line has already applied its own bulk discount. `Order.__init__` sums `item_cost`, then calls `customer.apply_discount()`. That method uses `discount_rate()`: `STAFF_DISCOUNT_RATE` (0.01), `STUDENT_DISCOUNT_RATE` (0.05), or `COMMUNITY_DISCOUNT_RATE` (0.0).
 - Community customers cannot hold two pending orders, and they cannot collect until the order's remaining balance is 0. Those are `CommunityCustomer.can_place_order()` and `can_collect_order()`. `NurserySystem` passes the pending count from `OrderHistory.get_pending_order_count()`.
-- Staff and students can accumulate a balance and can collect while they still owe money. Both rules are on `UniversityCustomer`: `can_place_order()` allows another order only while `balance` is at most `CREDIT_LIMIT` ($100), and `can_collect_order()` returns `True`. `NurserySystem.place_order()` turns a false answer into `OrderNotAllowedError`.
+- Staff and students can accumulate a balance and can collect while they still owe money. Both rules are on `UniversityCustomer`: `can_place_order()` allows an order only when `balance` plus the new order's total is at most `CREDIT_LIMIT` ($100), and `can_collect_order()` returns `True`. `NurserySystem.place_order()` turns a false answer into `OrderNotAllowedError`.
 
 ### Order Requirements
 
@@ -270,7 +270,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 - `__str__` is implemented on `Plant`, `Customer`, `Order`, `OrderItem`, `Payment`, the payment subclasses, and `NurserySystem`.
 - Every class and method has a docstring. Parameters and return values include their types. Method parameters and return values have type hints, and so do the object and list attributes.
 - Comments explain the choices that are not obvious from the code, such as why stock can reach 0 only through an order, and why a list getter returns a copy.
-- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four custom exceptions, and the caller catches them.
+- Invalid data raises `ValueError` or `TypeError`. An order that breaks one of Brent's rules raises one of the four order exceptions, and a failed login or a disallowed action raises `LoginFailedError` or `NotAuthorisedError`. The caller catches all six.
 
 ## Requirements from Brent's Final Notes
 
@@ -307,4 +307,8 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 
 ## Generative AI
 
-Cursor, with the Grok model, was used while building this application and while updating this README. It was used to draft and revise the Flask pages, the controllers, the SQLAlchemy mapping, the sample data in `seed.py`, and the pytest tests, and to check this README against Brent's notes and the code. The design decisions and assumptions in this file are the ones in the submitted code.
+Cursor, with the Grok model, was used while building this application and while updating this README. It was used to draft and revise the Flask pages, the controllers, the SQLAlchemy mapping, the sample data in `seed.py`, and the pytest tests, and to check this README against Brent's notes and the code.
+
+Cursor, with Anthropic's Claude model, was then used to review the finished application against the three assignment briefs. It was used to find places where this README did not match the code, and to correct the README text about the $100 limit, the number of custom exceptions, and the Python version. It was not used to write the application code in that step.
+
+The design decisions and assumptions in this file are the ones in the submitted code.
