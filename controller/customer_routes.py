@@ -122,7 +122,8 @@ def add_customer() -> str:
         )
 
     flash(
-        f"{customer.cust_name} added. Customer number {customer.customer_number}.",
+        f"{customer.cust_name} added. "
+        f"Customer number {customer.customer_number}.",
         "success",
     )
     return redirect(
@@ -190,7 +191,9 @@ def customer_home(customer_id: uuid.UUID) -> str:
     return url_for("nursery.customer_detail", customer_id=customer_id)
 
 
-@nursery_bp.route("/customers/<uuid:customer_id>/edit", methods=["GET", "POST"])
+@nursery_bp.route(
+    "/customers/<uuid:customer_id>/edit", methods=["GET", "POST"]
+)
 @signed_in
 def edit_customer(customer_id: uuid.UUID) -> str:
     """

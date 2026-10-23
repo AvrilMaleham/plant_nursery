@@ -59,7 +59,8 @@ def search_filters() -> dict[str, object]:
     $30, so a plant priced on a boundary stays in one band. The model
     includes its maximum.
 
-    :return (dict[str, object]): The values to show again, and the model filters
+    :return (dict[str, object]): The values to show again, and the model
+        filters
     """
     band = text(request.args.get("price_band"))
     min_price = None
@@ -147,9 +148,8 @@ def add_plant() -> str:
         stock = read_int(request.form.get("stock"), "Stock")
         plant_type = text(request.form.get("plant_type"))
         if plant_type == PotPlant.TYPE_NAME:
-            plant = PotPlant(
-                name, price, stock, filename, text(request.form.get("pot_size"))
-            )
+            pot_size = text(request.form.get("pot_size"))
+            plant = PotPlant(name, price, stock, filename, pot_size)
         elif plant_type == VegetableSeedling.TYPE_NAME:
             seedlings_raw = text(request.form.get("seedlings"))
             seedlings = (

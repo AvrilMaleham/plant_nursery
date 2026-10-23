@@ -37,9 +37,9 @@ class NurserySystem:
         :param session (Session): The session that reads and writes the
             nursery tables
         """
-        # The collections live here so the rest of the application talks to one object.
-        # Orders can then only be created for plants and customers that are
-        # already registered.
+        # The collections live here so the rest of the application talks
+        # to one object. Orders can then only be created for plants and
+        # customers that are already registered.
         self.__session = session
         self.__current_user: Optional[User] = None
         self.__catalog: PlantCatalog = PlantCatalog(session)

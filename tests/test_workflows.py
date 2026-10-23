@@ -441,7 +441,10 @@ def test_team_sells_at_the_counter_and_collects(client: FlaskClient) -> None:
         assert "Payment recorded." in receipt_html
         assert "debit card" in receipt_html
         assert "Paid</dt><dd>$32.00</dd>" in receipt_html
-        assert "Still to pay after this payment</dt><dd>$0.00</dd>" in receipt_html
+        assert (
+            "Still to pay after this payment</dt><dd>$0.00</dd>"
+            in receipt_html
+        )
 
         collected = client.post(
             f"{second_path}/collect",
@@ -572,7 +575,10 @@ def test_overdue_order_is_flagged_and_reported(client: FlaskClient) -> None:
     assert "Payment recorded." in receipt_html
     assert "Paid</dt><dd>$20.00</dd>" in receipt_html
     assert "Card surcharge</dt><dd>$0.00</dd>" in receipt_html
-    assert "Still to pay after this payment</dt><dd>$74.98</dd>" in receipt_html
+    assert (
+        "Still to pay after this payment</dt><dd>$74.98</dd>"
+        in receipt_html
+    )
 
     reported = page(client.get(
         "/reports",

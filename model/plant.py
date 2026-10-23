@@ -37,7 +37,8 @@ class Plant(Base):
             name="ck_plants_seedlings",
         ),
         CheckConstraint(
-            "plant_type = 'vegetable seedlings' OR seedlings_per_punnet IS NULL",
+            "plant_type = 'vegetable seedlings' "
+            "OR seedlings_per_punnet IS NULL",
             name="ck_plants_seedlings_only",
         ),
         CheckConstraint(

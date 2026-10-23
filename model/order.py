@@ -7,7 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .customer import Customer
-from .exceptions import OrderCannotBeCancelledError, OrderCannotBeCollectedError
+from .exceptions import (
+    OrderCannotBeCancelledError,
+    OrderCannotBeCollectedError,
+)
 from .order_item import OrderItem
 from .plant import Plant
 
@@ -329,7 +332,9 @@ class Order(Base):
         # subclass.
         if not self.customer.can_collect_order(self.remaining_balance):
             raise OrderCannotBeCollectedError(
-                "Community customers must pay an order in full before it can be collected")
+                "Community customers must pay an order in full "
+                "before it can be collected"
+            )
         if collected_date is None:
             collected_date = date.today().strftime("%d-%m-%Y")
         self._collected_date = self.__validate_order_date(collected_date)

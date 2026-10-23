@@ -5,7 +5,13 @@ from datetime import date
 
 from flask import render_template, request
 
-from controller.blueprint import RULE_ERRORS, explain, nursery_bp, signed_in, system
+from controller.blueprint import (
+    RULE_ERRORS,
+    explain,
+    nursery_bp,
+    signed_in,
+    system,
+)
 from controller.customer_routes import every_customer
 from controller.parsing import text
 
@@ -21,7 +27,8 @@ def reports() -> str:
     :return (str): The reports page, or a redirect when refused
     """
     period = text(request.args.get("period")) or "day"
-    on_date = text(request.args.get("on_date")) or date.today().strftime("%d-%m-%Y")
+    today = date.today().strftime("%d-%m-%Y")
+    on_date = text(request.args.get("on_date")) or today
     plant_id = text(request.args.get("plant_id"))
     customer_id = text(request.args.get("customer_id"))
     try:

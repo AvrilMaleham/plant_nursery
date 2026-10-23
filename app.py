@@ -25,7 +25,9 @@ def create_app() -> Flask:
         static_folder=str(ROOT / "view" / "static"),
     )
     # The session cookie remembers who logged in on this computer.
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "lincoln-nursery-local")
+    app.secret_key = os.environ.get(
+        "FLASK_SECRET_KEY", "lincoln-nursery-local"
+    )
     app.register_blueprint(nursery_bp)
     return app
 

@@ -142,6 +142,13 @@ def signed_in(view: Callable) -> Callable:
 
     @wraps(view)
     def wrapper(*args: object, **kwargs: object) -> object:
+        """
+        Open the view when someone is logged in, otherwise send them to login.
+
+        :param args (object): Arguments for the view
+        :param kwargs (object): Keyword arguments for the view
+        :return (object): The view's result, or a redirect to the login page
+        """
         if system().current_user is None:
             return redirect(url_for("nursery.login"))
         return view(*args, **kwargs)

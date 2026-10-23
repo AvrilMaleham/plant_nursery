@@ -208,7 +208,9 @@ def test_pending_order_is_flagged_after_seven_days() -> None:
 
 
 def test_invoice_lists_bulk_and_customer_discounts() -> None:
-    """An invoice shows the line discount, the customer discount, and the total."""
+    """
+    An invoice shows the line discount, the customer discount, and the total.
+    """
     plant = VegetableSeedling("Tomato", 4.50, 50, "tomato.png")
     order = Order(student_customer(), [(plant, 12)])
     invoice = Invoice(order)
@@ -240,7 +242,10 @@ def test_receipt_shows_the_surcharge_and_what_is_left() -> None:
 
 
 def test_password_is_stored_as_a_hash() -> None:
-    """The typed password is checked against a hash, and the hash is not the password."""
+    """
+    The typed password is checked against a hash, and the hash is not
+    the password.
+    """
     user = User("team", "nursery", "team")
     assert user.check_password("nursery") is True
     assert user.check_password("wrong") is False
@@ -248,7 +253,10 @@ def test_password_is_stored_as_a_hash() -> None:
 
 
 def test_team_login_is_not_linked_to_a_customer() -> None:
-    """The shared team account has no customer, and a customer account must have one."""
+    """
+    The shared team account has no customer, and a customer account must
+    have one.
+    """
     team = User("team", "nursery", "team")
     assert team.role == "team"
     assert team.customer is None

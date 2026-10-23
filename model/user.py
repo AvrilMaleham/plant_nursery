@@ -1,7 +1,13 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -138,7 +144,9 @@ class User(Base):
 
         :return (str): A readable string of the login, without the password
         """
-        linked = self.customer.cust_name if self.customer is not None else "none"
+        linked = "none"
+        if self.customer is not None:
+            linked = self.customer.cust_name
         return "Username: {}, Role: {}, Customer: {}".format(
             self.username, self.role, linked
         )

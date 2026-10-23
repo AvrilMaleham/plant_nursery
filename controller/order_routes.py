@@ -6,7 +6,14 @@ from datetime import datetime
 
 from flask import flash, g, redirect, render_template, request, url_for
 
-from controller.blueprint import RULE_ERRORS, explain, is_team, nursery_bp, signed_in, system
+from controller.blueprint import (
+    RULE_ERRORS,
+    explain,
+    is_team,
+    nursery_bp,
+    signed_in,
+    system,
+)
 from controller.customer_routes import every_customer
 from controller.parsing import read_float, text
 from model.order import Order
@@ -197,7 +204,9 @@ def pay_order(order_id: uuid.UUID) -> str:
                 text(request.form.get("bank_name")),
             )
         else:
-            raise ValueError("Payment method must be credit card or debit card")
+            raise ValueError(
+                "Payment method must be credit card or debit card"
+            )
         system().record_payment(payment)
     except RULE_ERRORS as error:
         return explain(error)
@@ -255,7 +264,8 @@ def payments() -> str:
             for customer in every_customer():
                 found.extend(system().get_customer_payments(customer))
         else:
-            found = system().get_customer_payments(system().current_user.customer)
+            customer = system().current_user.customer
+            found = system().get_customer_payments(customer)
     except RULE_ERRORS as error:
         return explain(error)
     return render_template("payments.html", payments=found)

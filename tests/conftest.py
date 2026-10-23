@@ -7,7 +7,10 @@ The sample data in plant_nursery is not changed.
 """
 
 import os
+from collections.abc import Iterator
 
+import pytest
+from flask.testing import FlaskClient
 from sqlalchemy.engine import make_url
 
 # Point the engine at the test database before the application is imported.
@@ -20,19 +23,19 @@ os.environ["DATABASE_URL"] = make_url(_source).set(
     database="plant_nursery_test"
 ).render_as_string(hide_password=False)
 
-import pytest
-
-from app import app
-from model.database import reset_database
-
 
 @pytest.fixture
-def client():
+def client() -> Iterator[FlaskClient]:
     """
     Give a test an empty nursery and a browser session.
 
-    :return: A Flask test client for one workflow
+    :return (Iterator[FlaskClient]): A Flask test client for one workflow
     """
+    # Imported after the address above is set. A module-level import would
+    # run first and miss the test database.
+    from app import app
+    from model.database import reset_database
+
     reset_database()
     app.config.update(TESTING=True)
     with app.test_client() as test_client:
