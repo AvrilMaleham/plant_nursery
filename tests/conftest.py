@@ -25,6 +25,16 @@ os.environ["DATABASE_URL"] = make_url(_source).set(
 
 
 @pytest.fixture
+def fresh_database() -> None:
+    """
+    Give a test an empty set of nursery tables in the test database.
+    """
+    from model.database import reset_database
+
+    reset_database()
+
+
+@pytest.fixture
 def client() -> Iterator[FlaskClient]:
     """
     Give a test an empty nursery and a browser session.

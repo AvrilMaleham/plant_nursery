@@ -82,11 +82,12 @@ Right-click the server and choose Refresh. Open Databases, then `plant_nursery`,
 
 The sample covers every part of the site: a sold-out cactus, Avril's lavender order that has been pending for ten days, Jane's cancelled order and her order of twelve tomato punnets, and Sam's order of an orchid and lavender, paid with a debit card and then a credit card, and collected.
 
-The unit tests in `tests/test_business_rules.py` check the business rules without the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. To run one file:
+The unit tests in `tests/test_business_rules.py` check the business rules without the database. The integration tests in `tests/test_workflows.py` sign in through the web pages and follow an order, a counter sale, and the reports from start to finish. The tests in `tests/test_concurrency.py` open two database sessions at once, like two staff at two screens, and check that they cannot sell the same stock twice. To run one file:
 
 ```bash
 python -m pytest tests/test_business_rules.py
 python -m pytest tests/test_workflows.py
+python -m pytest tests/test_concurrency.py
 ```
 
 ## Design Decisions
@@ -184,6 +185,14 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 ### Reports
 
 `plant_order_history()` returns every order that includes that plant, oldest first, including cancelled orders. `customer_activity()` builds an `ActivityRecord` for each placed, paid, collected, and cancelled event, sorted by date. `most_ordered_plants()` and `least_ordered_plants()` count quantity on orders that are not cancelled. A plant that has never been ordered is included as 0, so it still appears at the top of the least-ordered list. Ties are alphabetical by plant name. `revenue()` totals `amount_charged()` for payments in a day, a week, or a month, so a credit card surcharge is part of the revenue. A week is the chosen date plus the next six days. A month is the calendar month that contains the chosen date. All five reports call `__require_team()`.
+
+### Two People at Once
+
+Brent's first problem was two staff selling the same plants without knowing what the other had sold, and the IT team chose a database to cope with busy days. A database on its own does not stop that. If two staff both read "1 in stock" and both sell it, the second write simply replaces the first and the nursery has sold a plant it does not have.
+
+`place_order()`, `record_payment()`, `cancel_order()`, `collect_order()`, and `update_plant_stock()` therefore lock the rows they are about to rely on, with `SELECT ... FOR UPDATE`, before they read them. `__lock_rows()` also refreshes the objects the request already loaded (`populate_existing`), because a stale in-memory stock level would defeat the lock. The second person waits until the first request has saved, and then sees the stock, balance, pending orders, or amount still owing as they really are. That means the second order for the last plant is refused with `InsufficientStockError`, a community customer served at two screens cannot get two pending orders, and two payments cannot together pay more than is owed. Locks are always taken in the same order (customer, then order, then plants, with plants in id order), so two requests cannot wait on each other forever.
+
+The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last resort. `save_changes()` writes the changes at the end of each of those methods, so if the database ever does refuse one, the person gets a message (for stock, the same "Insufficient stock" wording) at the point they acted. As a final safety net, `save_nursery()` in `controller/blueprint.py` commits before the response is sent. If that commit fails, the person is told nothing was saved, and a success message such as "Order placed." is not shown. It previously committed after the response, where a failure would have been hidden.
 
 ### Login and Authorisation Exceptions
 
@@ -314,7 +323,7 @@ When the team adds a plant, the photo has to be a PNG, JPG, GIF, or WEBP file. I
 - Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
 - `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
 - `LoginFailedError` and `NotAuthorisedError` are the two new custom exceptions. The controllers flash those, and the original four, with the message the model raised.
-- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden.
 
 ## Generative AI
 

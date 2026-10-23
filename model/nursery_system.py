@@ -3,11 +3,13 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .customer import Customer
 from .documents import ActivityRecord, Invoice, Receipt
 from .exceptions import (
+    InsufficientStockError,
     LoginFailedError,
     NotAuthorisedError,
     OrderNotAllowedError,
@@ -231,6 +233,108 @@ class NurserySystem:
                 "You can only do that for your own account"
             )
 
+    # ---------- Locking and Saving ----------
+    # Two people can be working at once, each in their own database session.
+    # Reading a stock level or a balance and then writing back a new one is
+    # not safe on its own: both could read 1 plant in stock and both sell it.
+    # So before a change that depends on those numbers, the rows involved are
+    # locked and read again. The second person waits until the first has
+    # saved, and then sees what the first one did. Locks are always taken in
+    # the same order (customer, order, plants) so two people cannot wait on
+    # each other forever. They are released when the request commits or rolls
+    # back.
+
+    def __lock_customer(self, customer: Customer) -> None:
+        """
+        Lock a customer's row and read their balance again
+
+        :param customer (Customer): The customer whose balance is about to
+            be read and changed
+        """
+        self.__lock_rows(Customer, Customer._cust_id, [customer.cust_id])
+
+    def __lock_order(self, order: Order) -> None:
+        """
+        Lock an order's row and read its status and payments again
+
+        :param order (Order): The order about to be paid, cancelled, or
+            collected
+        """
+        self.__lock_rows(Order, Order._order_id, [order.order_id])
+
+    def __lock_plants(self, plant_ids: list[uuid.UUID]) -> None:
+        """
+        Lock plant rows and read their stock again
+
+        :param plant_ids (list[uuid.UUID]): The plants about to be sold,
+            returned to stock, or restocked
+        """
+        self.__lock_rows(Plant, Plant._plant_id, plant_ids)
+
+    def __lock_rows(
+        self,
+        model: type,
+        id_column: object,
+        ids: list[uuid.UUID],
+    ) -> None:
+        """
+        Lock rows with SELECT ... FOR UPDATE and refresh the objects already
+        loaded for them
+
+        :param model (type): The mapped class to lock
+        :param id_column (object): The mapped id column of that class
+        :param ids (list[uuid.UUID]): The ids to lock
+        """
+        wanted = list(dict.fromkeys(ids))
+        if not wanted:
+            return
+        # populate_existing matters: the request has usually loaded these
+        # objects already, and without it the old stock or balance would be
+        # kept even though the row was just read again. Ordering by id means
+        # several plants are locked in the same order by everyone.
+        self.__session.execute(
+            select(model)
+            .where(id_column.in_(wanted))
+            .order_by(id_column)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalars().all()
+
+    def save_changes(self) -> None:
+        """
+        Write pending changes to the database now, so a change the database
+        refuses is reported here as a clear message, not later as a crash.
+
+        :raises InsufficientStockError: If the database stopped stock going
+            below zero
+        :raises ValueError: If the database refused the change for another
+            reason, such as two people changing the same record at once
+        """
+        try:
+            self.__session.flush()
+        except IntegrityError as error:
+            self.__session.rollback()
+            raise self.__explain_refusal(error) from None
+
+    def __explain_refusal(self, error: IntegrityError) -> Exception:
+        """
+        Turn a database refusal into the error a person should be told about
+
+        :param error (IntegrityError): What the database raised
+        :return (Exception): The error to raise instead
+        """
+        detail = getattr(error.orig, "diag", None)
+        constraint = getattr(detail, "constraint_name", None) or ""
+        if "ck_plants_stock" in constraint or "ck_plants_stock" in str(error):
+            return InsufficientStockError(
+                "Insufficient stock: someone else has just ordered some of "
+                "this plant. Check the stock shown and try again"
+            )
+        return ValueError(
+            "That change clashed with another change made at the same "
+            "time, so nothing was saved. Please try again"
+        )
+
     def __require_known_order(self, order: Order) -> Order:
         """
         Confirm the order is in this nursery, matching by ID
@@ -345,7 +449,12 @@ class NurserySystem:
         """
         self.__require_team()
         stored = self.find_plant(plant.plant_id)
+        # Wait for any order that is selling this plant right now, so the
+        # new batch is not overwritten by, or written over, a half-finished
+        # sale.
+        self.__lock_plants([stored.plant_id])
         stored.plant_stock = stock
+        self.save_changes()
 
     def search_plants(
         self,
@@ -675,6 +784,13 @@ class NurserySystem:
         # added.
         self.__require_registered_customer(customer)
 
+        # Lock the customer and the plants before anything is read from them.
+        # Another person may be ordering the same plants, or serving the same
+        # customer, right now. Waiting here means the stock, the balance, and
+        # the pending-order count below are what is really there.
+        self.__lock_customer(customer)
+        self.__lock_plants([plant.plant_id for plant, _quantity in items])
+
         # Price the lines before the order is created. Creating it would
         # already reduce stock and add the total to the balance.
         seen_plant_ids = []
@@ -711,6 +827,9 @@ class NurserySystem:
         # balance.
         order = Order(customer, items, order_date)
         self.__history.add_order(order)
+        # Write now, so a refusal from the database comes back as a message
+        # for this order, not as an error when the request is finished.
+        self.save_changes()
         return order
 
     def find_order(self, order_id: uuid.UUID) -> Order:
@@ -746,9 +865,12 @@ class NurserySystem:
         """
         self.__require_team()
         stored = self.__require_known_order(order)
+        # Lock the order so a cancel at another screen cannot also succeed.
+        self.__lock_order(stored)
         # collect_order() on Order enforces the legal status change, this only
         # confirms the order belongs to this nursery first.
         stored.collect_order(collected_date)
+        self.save_changes()
 
     def cancel_order(
         self,
@@ -770,8 +892,15 @@ class NurserySystem:
         """
         stored = self.__require_known_order(order)
         self.__require_self_or_team(stored.customer)
+        # Lock the customer, the order, and the plants it returns stock to, so
+        # a payment or collection at another screen cannot slip in, and the
+        # stock and balance written back are built on the current ones.
+        self.__lock_customer(stored.customer)
+        self.__lock_order(stored)
+        self.__lock_plants([item.plant.plant_id for item in stored.items])
         # cancel_order() on Order restores stock if the order is still pending.
         stored.cancel_order(cancelled_date)
+        self.save_changes()
 
     def filter_orders(
         self,
@@ -866,11 +995,18 @@ class NurserySystem:
             raise ValueError(
                 "Payment customer must be the customer on the order")
 
+        # Lock the customer and the order before the remaining balance is
+        # checked. Two payments arriving together would otherwise both see the
+        # same amount still owing and together pay too much.
+        self.__lock_customer(stored.customer)
+        self.__lock_order(stored)
+
         # record_payment() on Order enforces amount > 0 and not more than
         # remaining. The order is reduced by the amount paid, not by a card
         # surcharge.
         stored.record_payment(payment.amount)
         self.__payment_history.add_payment(payment)
+        self.save_changes()
 
     def find_payment(self, payment_id: uuid.UUID) -> Payment:
         """

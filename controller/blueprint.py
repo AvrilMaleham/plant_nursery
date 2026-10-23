@@ -15,6 +15,8 @@ from flask import (
     url_for,
 )
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from model.database import SessionLocal, init_db
 from model.exceptions import (
     InsufficientStockError,
@@ -84,10 +86,50 @@ def open_nursery() -> None:
         session.clear()
 
 
+@nursery_bp.after_request
+def save_nursery(response: Response) -> Response:
+    """
+    Save the request's changes before the response goes back to the person.
+
+    This runs before the response is sent, unlike teardown. If the database
+    refuses the save, the person is told so and nothing is kept, instead of
+    being shown "Order placed" for an order that was never stored.
+
+    :param response (Response): The page or redirect about to be sent
+    :return (Response): The same response, or a redirect with the reason when
+        the save was refused
+    """
+    db = g.get("db")
+    if db is None:
+        return response
+    if response.status_code >= 400:
+        db.rollback()
+        return response
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        # The view has already queued its own success message, such as
+        # "Order placed.". It is no longer true, so drop it.
+        session.pop("_flashes", None)
+        flash(
+            "That change clashed with another change made at the same time, "
+            "so nothing was saved. Please try again.",
+            "error",
+        )
+        target = request.referrer or ""
+        if not target.startswith(request.host_url):
+            target = url_for("nursery.home")
+        refused = redirect(target)
+        refused.headers["Cache-Control"] = "no-store"
+        return refused
+    return response
+
+
 @nursery_bp.teardown_request
 def close_nursery(error: BaseException | None) -> None:
     """
-    Commit the request when it succeeded, and always close the session.
+    Close the request's session. Anything not already saved is dropped.
 
     :param error (BaseException | None): An error raised while handling the
         request, or None
@@ -95,10 +137,9 @@ def close_nursery(error: BaseException | None) -> None:
     db = g.pop("db", None)
     if db is None:
         return
-    if error is None:
-        db.commit()
-    else:
-        db.rollback()
+    # Changes are saved in save_nursery() before the response is sent. Anything
+    # still open here belongs to a request that failed, so it is rolled back.
+    db.rollback()
     db.close()
 
 
