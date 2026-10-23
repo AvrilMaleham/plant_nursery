@@ -39,6 +39,41 @@ def test_tables_from_an_older_version_are_refused_with_the_fix(
     assert "python seed.py" in message
 
 
+def test_dates_stored_as_text_are_refused_with_the_fix(
+    memory_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dates used to be text. The column has the same name now, so only its
+    type shows the table is from the older version."""
+    memory_session.execute(
+        text("ALTER TABLE orders RENAME COLUMN order_date TO old_order_date")
+    )
+    memory_session.execute(
+        text("ALTER TABLE orders ADD COLUMN order_date VARCHAR(10)")
+    )
+    monkeypatch.setattr(model.database, "engine", memory_session.get_bind())
+
+    with pytest.raises(RuntimeError) as refused:
+        model.database.check_tables_match()
+    message = str(refused.value)
+    assert "'orders' table" in message
+    assert "order_date as text" in message
+    assert "python seed.py" in message
+
+
+def test_the_old_payment_column_name_is_refused(
+    memory_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """created_at used to be called recorded_at, so a table that has the old
+    name has no created_at."""
+    memory_session.execute(
+        text("ALTER TABLE payments RENAME COLUMN created_at TO recorded_at")
+    )
+    monkeypatch.setattr(model.database, "engine", memory_session.get_bind())
+
+    with pytest.raises(RuntimeError, match="no created_at column"):
+        model.database.check_tables_match()
+
+
 def test_a_database_with_no_tables_yet_passes(
     memory_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

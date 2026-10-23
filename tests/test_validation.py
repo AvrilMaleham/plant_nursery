@@ -6,6 +6,7 @@ not quietly ignored. These tests submit the forms directly, as a browser
 would after getting past the page's own checks.
 """
 
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 
@@ -116,7 +117,7 @@ def test_blank_names_and_bad_quantities_are_refused(
         assert len(system.directory.customer_list) == 1
         assert system.find_plant(rose.plant_id).plant_stock == 10
         assert system.find_plant(lavender.plant_id).plant_stock == 10
-        assert system.find_customer(sam.cust_id).balance == 0.0
+        assert system.find_customer(sam.cust_id).balance == Decimal("0.0")
 
     # A valid quantity still goes through.
     with client.application.test_client() as fresh:

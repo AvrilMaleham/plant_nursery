@@ -1,6 +1,9 @@
 """Turn form and query text into values the model can check."""
 
+from decimal import Decimal
 from typing import Optional
+
+from model.money import to_money
 
 
 def text(raw: Optional[str]) -> str:
@@ -30,20 +33,18 @@ def required_text(raw: Optional[str], label: str) -> str:
     return value
 
 
-def read_float(raw: Optional[str], label: str) -> float:
+def read_money(raw: Optional[str], label: str) -> Decimal:
     """
-    Read a required number from a form field.
+    Read a required amount of money from a form field.
 
     :param raw (Optional[str]): The submitted text
     :param label (str): The field name to use in the message
-    :return (float): The number
+    :return (Decimal): The amount, in whole cents
     :raises ValueError: If the field is blank or not a number
     """
-    value = required_text(raw, label)
-    try:
-        return float(value)
-    except ValueError:
-        raise ValueError(f"{label} must be a number") from None
+    # The text goes straight to Decimal, so 15.99 never passes through a
+    # float.
+    return to_money(required_text(raw, label), label)
 
 
 def read_int(raw: Optional[str], label: str) -> int:
@@ -60,21 +61,3 @@ def read_int(raw: Optional[str], label: str) -> int:
         return int(value)
     except ValueError:
         raise ValueError(f"{label} must be a whole number") from None
-
-
-def optional_float(raw: Optional[str], label: str) -> Optional[float]:
-    """
-    Read a number when the field was filled in.
-
-    :param raw (Optional[str]): The submitted text
-    :param label (str): The field name to use in the message
-    :return (Optional[float]): The number, or None when the field is blank
-    :raises ValueError: If the field is not a number
-    """
-    value = text(raw)
-    if not value:
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        raise ValueError(f"{label} must be a number") from None

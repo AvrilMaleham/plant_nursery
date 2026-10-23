@@ -1,18 +1,20 @@
 import uuid
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
+from .money import MoneyInput, apply_rate, to_money
 
 # Staff and students cannot place another order while owing more than this.
-CREDIT_LIMIT = 100
+CREDIT_LIMIT = Decimal("100.00")
 
 # These come off the order total. Community customers get no discount.
-STAFF_DISCOUNT_RATE = 0.01
-STUDENT_DISCOUNT_RATE = 0.05
-COMMUNITY_DISCOUNT_RATE = 0.0
+STAFF_DISCOUNT_RATE = Decimal("0.01")
+STUDENT_DISCOUNT_RATE = Decimal("0.05")
+COMMUNITY_DISCOUNT_RATE = Decimal("0")
 
 
 class Customer(Base):
@@ -47,8 +49,8 @@ class Customer(Base):
     _cust_phone: Mapped[Optional[str]] = mapped_column(
         "cust_phone", String(50), nullable=True
     )
-    _balance: Mapped[float] = mapped_column(
-        "balance", Numeric(10, 2), nullable=False, default=0
+    _balance: Mapped[Decimal] = mapped_column(
+        "balance", Numeric(10, 2), nullable=False, default=Decimal("0.00")
     )
 
     __mapper_args__ = {
@@ -232,53 +234,55 @@ class Customer(Base):
         self._cust_phone = new_phone
 
     @property
-    def balance(self) -> float:
+    def balance(self) -> Decimal:
         """
         Get the amount the customer currently owes
 
-        :return (float): The amount the customer currently owes
+        :return (Decimal): The amount the customer currently owes
         """
-        return float(self._balance)
+        return Decimal(self._balance)
 
     # ---------- Methods ----------
 
-    def add_to_balance(self, amount: float) -> None:
+    def add_to_balance(self, amount: MoneyInput) -> None:
         """
         Add to the amount the customer owes when an order is placed
 
-        :param amount (float): Amount to add, must be greater than 0
+        :param amount (MoneyInput): Amount to add, must be greater than 0
         :raises ValueError: If amount is not greater than 0
         """
-        if amount <= 0:
+        added = to_money(amount)
+        if added <= 0:
             raise ValueError("Amount to add must be greater than 0")
-        self._balance = round(self.balance + amount, 2)
+        self._balance = self.balance + added
 
-    def reduce_balance(self, amount: float) -> None:
+    def reduce_balance(self, amount: MoneyInput) -> None:
         """
         Reduce the amount the customer owes when they pay or an order is
         cancelled
 
-        :param amount (float): Amount to take off, must be greater than 0 and
-            not more than the current balance
+        :param amount (MoneyInput): Amount to take off, must be greater than 0
+            and not more than the current balance
         :raises ValueError: If amount is not greater than 0, or is more than
             the current balance
         """
-        if amount <= 0:
+        taken = to_money(amount)
+        if taken <= 0:
             raise ValueError("Amount to reduce must be greater than 0")
-        if amount > self.balance:
+        if taken > self.balance:
             raise ValueError("Cannot reduce balance below 0")
-        self._balance = round(self.balance - amount, 2)
+        self._balance = self.balance - taken
 
-    def apply_discount(self, subtotal: float) -> float:
+    def apply_discount(self, subtotal: MoneyInput) -> Decimal:
         """
         Apply this customer's discount to an order subtotal
 
-        :param subtotal (float): The order total after any item discounts
-        :return (float): The total after the customer discount, rounded to 2
-            decimal places
+        :param subtotal (MoneyInput): The order total after any item discounts
+        :return (Decimal): The total after the customer discount, rounded to
+            whole cents
         """
         # discount_rate() is supplied by the concrete subclass.
-        return round(subtotal * (1 - self.discount_rate()), 2)
+        return apply_rate(to_money(subtotal), self.discount_rate())
 
     def customer_type(self) -> str:
         """
@@ -288,34 +292,35 @@ class Customer(Base):
         """
         return self.kind
 
-    def discount_rate(self) -> float:
+    def discount_rate(self) -> Decimal:
         """
         Return this customer's discount rate as a decimal
 
-        :return (float): This customer's discount rate as a decimal
+        :return (Decimal): This customer's discount rate as a fraction
         """
         raise NotImplementedError
 
     def can_place_order(
         self,
         pending_order_count: int,
-        order_total: float = 0.0,
+        order_total: MoneyInput = 0,
     ) -> bool:
         """
         Return whether this customer is allowed to place a new order
 
         :param pending_order_count (int): How many pending orders this customer
             already has
-        :param order_total (float): The total of the order they want to place
+        :param order_total (MoneyInput): The total of the order they want to
+            place
         :return (bool): True if a new order is allowed, else False
         """
         raise NotImplementedError
 
-    def can_collect_order(self, amount_owing_on_order: float) -> bool:
+    def can_collect_order(self, amount_owing_on_order: MoneyInput) -> bool:
         """
         Return whether this customer is allowed to collect an order
 
-        :param amount_owing_on_order (float): What is still unpaid on that
+        :param amount_owing_on_order (MoneyInput): What is still unpaid on that
             order
         :return (bool): True if the order may be collected, else False
         """
@@ -348,7 +353,7 @@ class UniversityCustomer(Customer):
     def can_place_order(
         self,
         pending_order_count: int,
-        order_total: float = 0.0,
+        order_total: MoneyInput = 0,
     ) -> bool:
         """
         University customers cannot place an order that would take what they
@@ -356,18 +361,20 @@ class UniversityCustomer(Customer):
 
         :param pending_order_count (int): Not used; balances can accumulate
             across orders
-        :param order_total (float): The total of the order they want to place
+        :param order_total (MoneyInput): The total of the order they want to
+            place
         :return (bool): True if the balance plus this order is $100 or less
         """
         # The new order is included, so a balance of $90 cannot take a $20
         # order. A balance of exactly $100 already blocks another order.
-        return round(self.balance + order_total, 2) <= CREDIT_LIMIT
+        return self.balance + to_money(order_total) <= CREDIT_LIMIT
 
-    def can_collect_order(self, amount_owing_on_order: float) -> bool:
+    def can_collect_order(self, amount_owing_on_order: MoneyInput) -> bool:
         """
         University customers may collect an order while still owing money
 
-        :param amount_owing_on_order (float): Not used for university customers
+        :param amount_owing_on_order (MoneyInput): Not used for university
+            customers
         :return (bool): True
         """
         return True
@@ -391,11 +398,11 @@ class StaffCustomer(UniversityCustomer):
         """
         return self.TYPE_NAME
 
-    def discount_rate(self) -> float:
+    def discount_rate(self) -> Decimal:
         """
         Return this customer's discount rate as a decimal
 
-        :return (float): This customer's discount rate as a decimal
+        :return (Decimal): This customer's discount rate as a fraction
         """
         return STAFF_DISCOUNT_RATE
 
@@ -418,11 +425,11 @@ class StudentCustomer(UniversityCustomer):
         """
         return self.TYPE_NAME
 
-    def discount_rate(self) -> float:
+    def discount_rate(self) -> Decimal:
         """
         Return this customer's discount rate as a decimal
 
-        :return (float): This customer's discount rate as a decimal
+        :return (Decimal): This customer's discount rate as a fraction
         """
         return STUDENT_DISCOUNT_RATE
 
@@ -445,36 +452,36 @@ class CommunityCustomer(Customer):
         """
         return self.TYPE_NAME
 
-    def discount_rate(self) -> float:
+    def discount_rate(self) -> Decimal:
         """
         Return this customer's discount rate as a decimal
 
-        :return (float): This customer's discount rate as a decimal
+        :return (Decimal): This customer's discount rate as a fraction
         """
         return COMMUNITY_DISCOUNT_RATE
 
     def can_place_order(
         self,
         pending_order_count: int,
-        order_total: float = 0.0,
+        order_total: MoneyInput = 0,
     ) -> bool:
         """
         Community customers may only have one pending order at a time
 
         :param pending_order_count (int): How many pending orders this customer
             already has
-        :param order_total (float): Not used; the pending-order rule does not
-            depend on the amount
+        :param order_total (MoneyInput): Not used; the pending-order rule
+            does not depend on the amount
         :return (bool): True if they have no pending order, else False
         """
         return pending_order_count == 0
 
-    def can_collect_order(self, amount_owing_on_order: float) -> bool:
+    def can_collect_order(self, amount_owing_on_order: MoneyInput) -> bool:
         """
         Community customers must pay an order off in full before it can be
         collected
 
-        :param amount_owing_on_order (float): What is still unpaid on that
+        :param amount_owing_on_order (MoneyInput): What is still unpaid on that
             order
         :return (bool): True if nothing is still owed on the order, else False
         """

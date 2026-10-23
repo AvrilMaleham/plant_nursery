@@ -20,6 +20,7 @@ from flask import (
 from sqlalchemy.exc import SQLAlchemyError
 
 from model.database import SessionLocal, init_db
+from model.dates import format_date
 from model.exceptions import (
     CustomerInUseError,
     InsufficientStockError,
@@ -53,6 +54,11 @@ RULE_ERRORS = (
     PlantInUseError,
     CustomerInUseError,
 )
+
+
+# Dates are real dates in the model. The screens show them as DD-MM-YYYY, the
+# way staff type them.
+nursery_bp.add_app_template_filter(format_date, "dmy")
 
 
 def system() -> NurserySystem:

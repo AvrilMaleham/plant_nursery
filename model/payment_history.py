@@ -1,3 +1,7 @@
+import uuid
+from datetime import date
+from typing import Optional
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,14 +26,16 @@ class PaymentHistory:
     @property
     def payment_list(self) -> list[Payment]:
         """
-        Get the list of payments
+        Get the list of payments, in the order they were entered
 
         :return (list[Payment]): The list of payments
         """
         # A new list is returned so callers cannot change the history by
         # editing it. New payments still have to go through add_payment(),
         # which checks for duplicate IDs.
-        payments = self.__session.scalars(select(Payment)).all()
+        payments = self.__session.scalars(
+            select(Payment).order_by(Payment._created_at)
+        ).all()
         return list(payments)
 
     # ---------- Methods ----------
@@ -50,32 +56,62 @@ class PaymentHistory:
 
         self.__session.add(payment)
 
+    def find_payment(self, payment_id: uuid.UUID) -> Optional[Payment]:
+        """
+        Look a payment up by its ID
+
+        :param payment_id (uuid.UUID): The ID to look for
+        :return (Optional[Payment]): The payment, or None if there is none
+        """
+        return self.__session.get(Payment, payment_id)
+
     def get_customer_payments(self, customer: Customer) -> list[Payment]:
         """
-        Retrieve all payments made by a specific customer
+        Retrieve all payments made by a specific customer, earliest first
 
         :param customer (Customer): The customer to look up
         :return (list[Payment]): A list of Payment objects belonging to that
             customer
         """
-        matching_payments = []
-        for payment in self.payment_list:
-            if payment.customer.cust_id == customer.cust_id:
-                matching_payments.append(payment)
-        return matching_payments
+        payments = self.__session.scalars(
+            select(Payment)
+            .where(Payment._customer_id == customer.cust_id)
+            .order_by(Payment._payment_date, Payment._created_at)
+        ).all()
+        return list(payments)
 
     def get_order_payments(self, order: Order) -> list[Payment]:
         """
-        Retrieve all payments made toward a specific order
+        Retrieve all payments made toward a specific order, earliest first
+
+        The payment date has no time on it, so payments made on the same day
+        are put in the order they were entered (created_at). Receipts rely on
+        this to work out what was still owed after each payment.
 
         :param order (Order): The order to look up
         :return (list[Payment]): A list of Payment objects for that order
         """
-        matching_payments = []
-        for payment in self.payment_list:
-            if payment.order.order_id == order.order_id:
-                matching_payments.append(payment)
-        return matching_payments
+        payments = self.__session.scalars(
+            select(Payment)
+            .where(Payment._order_id == order.order_id)
+            .order_by(Payment._payment_date, Payment._created_at)
+        ).all()
+        return list(payments)
+
+    def get_payments_between(self, start: date, end: date) -> list[Payment]:
+        """
+        Retrieve the payments made from one day to another, both included
+
+        :param start (date): The first day
+        :param end (date): The last day
+        :return (list[Payment]): The payments in that period, earliest first
+        """
+        payments = self.__session.scalars(
+            select(Payment)
+            .where(Payment._payment_date.between(start, end))
+            .order_by(Payment._payment_date, Payment._created_at)
+        ).all()
+        return list(payments)
 
     def display_all_payments(self) -> None:
         """Print a readable list of every payment in the list"""

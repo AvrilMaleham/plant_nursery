@@ -7,6 +7,7 @@ here opens PostgreSQL or the Flask screens.
 """
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -33,14 +34,14 @@ def new_order() -> Order:
 def debit(
     card: str = CARD,
     bank: str = "ANZ",
-    paid_on: str | None = None,
+    paid_on: str | date | None = None,
 ) -> DebitCardPayment:
     """
     Make a debit card payment of $5.00.
 
     :param card (str): The card number as typed
     :param bank (str): The bank name as typed
-    :param paid_on (str | None): The payment date, or None for today
+    :param paid_on (str | date | None): The payment date, or None for today
     :return (DebitCardPayment): The payment
     """
     order = new_order()
@@ -48,13 +49,13 @@ def debit(
 
 
 def credit(
-    expiry: str, paid_on: str | None = PAID_ON, card: str = CARD
+    expiry: str, paid_on: str | date | None = PAID_ON, card: str = CARD
 ) -> CreditCardPayment:
     """
     Make a credit card payment of $5.00.
 
     :param expiry (str): The expiry as typed
-    :param paid_on (str | None): The payment date, or None for today
+    :param paid_on (str | date | None): The payment date, or None for today
     :param card (str): The card number as typed
     :return (CreditCardPayment): The payment
     """
@@ -216,11 +217,13 @@ def test_a_payment_dated_in_the_future_is_refused() -> None:
 
 def test_a_payment_dated_today_or_earlier_is_accepted() -> None:
     """Today, yesterday, and long ago are all fine."""
-    today = date.today().strftime("%d-%m-%Y")
-    yesterday = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
-    assert debit(paid_on=today).payment_date == today
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    # Text in DD-MM-YYYY and a real date are both accepted, and both are kept
+    # as a date.
+    assert debit(paid_on=today.strftime("%d-%m-%Y")).payment_date == today
     assert debit(paid_on=yesterday).payment_date == yesterday
-    assert debit(paid_on="01-01-2020").payment_date == "01-01-2020"
+    assert debit(paid_on="01-01-2020").payment_date == date(2020, 1, 1)
     assert debit().payment_date == today
 
 
@@ -268,5 +271,5 @@ def test_a_refused_payment_leaves_the_order_untouched() -> None:
         CreditCardPayment(
             order.customer, order, 5.00, "banana", "whenever", PAID_ON
         )
-    assert order.amount_paid == 0.0
+    assert order.amount_paid == Decimal("0.0")
     assert order.customer.balance == order.order_total

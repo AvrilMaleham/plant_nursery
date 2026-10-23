@@ -72,7 +72,7 @@
           <tbody>
             {% for order in history %}
               <tr>
-                <td>{{ order.order_date }}</td>
+                <td>{{ order.order_date|dmy }}</td>
                 <td>{{ order.customer.cust_name }} <span class="number">{{ order.customer.customer_number }}</span></td>
                 <td>{{ order.order_status }}</td>
                 <td>
@@ -108,7 +108,7 @@
       {% if activity %}
         <ol class="timeline">
           {% for record in activity %}
-            <li><span>{{ record.happened_on }}</span> {{ record.detail }}</li>
+            <li><span>{{ record.happened_on|dmy }}</span> {{ record.detail }}</li>
           {% endfor %}
         </ol>
       {% else %}

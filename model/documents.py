@@ -1,7 +1,11 @@
 """Invoices, receipts, and customer activity records."""
 
+from datetime import date
+from decimal import Decimal
 from typing import Optional
 
+from .dates import format_date
+from .money import ZERO, MoneyInput, to_money
 from .order import Order
 from .order_item import BULK_DISCOUNT_QUANTITY
 from .payment import Payment
@@ -15,9 +19,9 @@ class InvoiceLine:
         plant_name: str,
         quantity: int,
         sale_unit: str,
-        unit_price: float,
-        line_cost: float,
-        bulk_discount: float,
+        unit_price: MoneyInput,
+        line_cost: MoneyInput,
+        bulk_discount: MoneyInput,
     ) -> None:
         """
         Initialise a new InvoiceLine object
@@ -25,26 +29,26 @@ class InvoiceLine:
         :param plant_name (str): Name of the plant
         :param quantity (int): Quantity in the plant's sale unit
         :param sale_unit (str): The unit, such as plant, pot, or punnet
-        :param unit_price (float): The price of one sale unit
-        :param line_cost (float): The line cost after any bulk discount
-        :param bulk_discount (float): How much the bulk discount took off this
-            line, or 0
+        :param unit_price (MoneyInput): The price of one sale unit
+        :param line_cost (MoneyInput): The line cost after any bulk discount
+        :param bulk_discount (MoneyInput): How much the bulk discount took off
+            this line, or 0
         """
         self.plant_name = plant_name
         self.quantity = quantity
         self.sale_unit = sale_unit
-        self.unit_price = unit_price
-        self.line_cost = line_cost
-        self.bulk_discount = bulk_discount
+        self.unit_price = to_money(unit_price)
+        self.line_cost = to_money(line_cost)
+        self.bulk_discount = to_money(bulk_discount)
 
     @property
-    def full_cost(self) -> float:
+    def full_cost(self) -> Decimal:
         """
         Return the line cost before the bulk discount
 
-        :return (float): The line cost before the bulk discount
+        :return (Decimal): The line cost before the bulk discount
         """
-        return round(self.line_cost + self.bulk_discount, 2)
+        return self.line_cost + self.bulk_discount
 
     def __str__(self) -> str:
         """
@@ -76,14 +80,14 @@ class Invoice:
         self.customer_name = order.customer.cust_name
         self.customer_number = order.customer.customer_number
         self.lines: list[InvoiceLine] = []
-        line_total = 0.0
+        line_total = ZERO
         for item in order.items:
             # The stored line cost is after the 10% bulk discount. The
             # discount amount is the difference from the full line.
-            full_line = round(item.plant.plant_price * item.quantity, 2)
-            bulk_discount = 0.0
+            full_line = to_money(item.plant.plant_price * item.quantity)
+            bulk_discount = ZERO
             if item.quantity >= BULK_DISCOUNT_QUANTITY:
-                bulk_discount = round(full_line - item.item_cost, 2)
+                bulk_discount = full_line - item.item_cost
             self.lines.append(
                 InvoiceLine(
                     item.plant.plant_name,
@@ -97,26 +101,26 @@ class Invoice:
             line_total += item.item_cost
         # The customer discount is whatever is left between the lines and the
         # order total. Community customers have a discount of 0.
-        self.customer_discount = round(line_total - order.order_total, 2)
+        self.customer_discount = line_total - order.order_total
         self.total_to_pay = order.order_total
 
     @property
-    def cost(self) -> float:
+    def cost(self) -> Decimal:
         """
         Return the cost of the lines before any discount
 
-        :return (float): The cost of the lines before any discount
+        :return (Decimal): The cost of the lines before any discount
         """
-        return round(sum(line.full_cost for line in self.lines), 2)
+        return sum((line.full_cost for line in self.lines), ZERO)
 
     @property
-    def bulk_discount(self) -> float:
+    def bulk_discount(self) -> Decimal:
         """
         Return the bulk discount across every line
 
-        :return (float): The bulk discount across every line
+        :return (Decimal): The bulk discount across every line
         """
-        return round(sum(line.bulk_discount for line in self.lines), 2)
+        return sum((line.bulk_discount for line in self.lines), ZERO)
 
     def __str__(self) -> str:
         """
@@ -142,14 +146,14 @@ class Receipt:
     def __init__(
         self,
         payment: Payment,
-        remaining_on_order: Optional[float] = None,
+        remaining_on_order: Optional[MoneyInput] = None,
     ) -> None:
         """
         Build a receipt from a payment
 
         :param payment (Payment): The payment to show
-        :param remaining_on_order (Optional[float]): What was still owed on
-            the order after this payment. When omitted, the order's current
+        :param remaining_on_order (Optional[MoneyInput]): What was still owed
+            on the order after this payment. When omitted, the order's current
             balance is used
         """
         self.payment_id = payment.payment_id
@@ -159,11 +163,11 @@ class Receipt:
         self.customer_number = payment.customer.customer_number
         self.payment_type = payment.payment_type()
         self.amount = payment.amount
-        self.surcharge = round(payment.amount_charged() - payment.amount, 2)
+        self.surcharge = payment.amount_charged() - payment.amount
         self.amount_charged = payment.amount_charged()
         if remaining_on_order is None:
             remaining_on_order = payment.order.remaining_balance
-        self.remaining_on_order = remaining_on_order
+        self.remaining_on_order = to_money(remaining_on_order)
 
     def __str__(self) -> str:
         """
@@ -186,11 +190,11 @@ class Receipt:
 class ActivityRecord:
     """One dated event in a customer's history"""
 
-    def __init__(self, happened_on: str, action: str, detail: str) -> None:
+    def __init__(self, happened_on: date, action: str, detail: str) -> None:
         """
         Initialise a new ActivityRecord object
 
-        :param happened_on (str): The date in DD-MM-YYYY format
+        :param happened_on (date): The day it happened
         :param action (str): placed, paid, collected, or cancelled
         :param detail (str): A short description of the event
         """
@@ -204,4 +208,6 @@ class ActivityRecord:
 
         :return (str): A readable activity line
         """
-        return "{}: {} ({})".format(self.happened_on, self.detail, self.action)
+        return "{}: {} ({})".format(
+            format_date(self.happened_on), self.detail, self.action
+        )

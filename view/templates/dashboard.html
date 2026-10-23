@@ -31,7 +31,7 @@
         {% for order in follow_up %}
           <li>
             <a href="{{ url_for('nursery.order_detail', order_id=order.order_id) }}">
-              {{ order.order_date }} · {{ order.customer.cust_name }} <span class="number">{{ order.customer.customer_number }}</span> · ${{ "%.2f"|format(order.order_total) }}
+              {{ order.order_date|dmy }} · {{ order.customer.cust_name }} <span class="number">{{ order.customer.customer_number }}</span> · ${{ "%.2f"|format(order.order_total) }}
             </a>
           </li>
         {% endfor %}

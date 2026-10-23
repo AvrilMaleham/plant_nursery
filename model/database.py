@@ -10,11 +10,16 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Date, DateTime, create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from .base import Base
+
+REBUILD = (
+    "Run 'python seed.py' to rebuild the tables. That clears the data and "
+    "loads the sample again."
+)
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -74,20 +79,36 @@ def check_tables_match() -> None:
     to a table that is already there, so a database made before a column was
     added or renamed would fail later with an unclear SQL error.
 
-    :raises RuntimeError: If a table is missing a column the code uses
+    :raises RuntimeError: If a table is missing a column the code uses, or
+        keeps a date in a column that is not a date column
     """
     inspector = inspect(engine)
     for table in Base.metadata.sorted_tables:
         if not inspector.has_table(table.name):
             continue
-        stored = {col["name"] for col in inspector.get_columns(table.name)}
-        missing = sorted({col.name for col in table.columns} - stored)
+        stored = {
+            col["name"]: col["type"]
+            for col in inspector.get_columns(table.name)
+        }
+        missing = sorted({col.name for col in table.columns} - set(stored))
         if missing:
             raise RuntimeError(
                 f"The '{table.name}' table in this database is from an older "
-                f"version and has no {', '.join(missing)} column. Run "
-                "'python seed.py' to rebuild the tables. That clears the "
-                "data and loads the sample again."
+                f"version and has no {', '.join(missing)} column. {REBUILD}"
+            )
+        # Dates used to be text in DD-MM-YYYY. A column of the same name can
+        # still be there, but holding text, and the new code cannot use it.
+        wrong = sorted(
+            col.name
+            for col in table.columns
+            if isinstance(col.type, (Date, DateTime))
+            and not isinstance(stored[col.name], (Date, DateTime))
+        )
+        if wrong:
+            raise RuntimeError(
+                f"The '{table.name}' table in this database is from an older "
+                f"version and has {', '.join(wrong)} as text, not as a date. "
+                f"{REBUILD}"
             )
 
 

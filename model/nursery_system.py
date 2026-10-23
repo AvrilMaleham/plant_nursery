@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -7,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .customer import Customer
+from .dates import DateInput, parse_date
 from .documents import ActivityRecord, Invoice, Receipt
 from .exceptions import (
     CustomerInUseError,
@@ -16,7 +18,8 @@ from .exceptions import (
     OrderNotAllowedError,
     PlantInUseError,
 )
-from .order import Order
+from .money import ZERO, MoneyInput, to_money
+from .order import UNCOLLECTED_AFTER_DAYS, Order
 from .order_item import OrderItem
 from .payment import Payment
 from .plant import Plant
@@ -345,43 +348,10 @@ class NurserySystem:
         :return (Order): The stored order
         :raises ValueError: If the order is not in the system
         """
-        for existing in self.__history.order_list:
-            if existing.order_id == order.order_id:
-                return existing
-        raise ValueError("Order is not in the system")
-
-    def __payments_in_time_order(self, order: Order) -> list[Payment]:
-        """
-        Return the payments on an order, earliest first.
-
-        Payments on the same date stay in the order they were recorded.
-
-        :param order (Order): The order the payments belong to
-        :return (list[Payment]): Payments from first to last
-        """
-        payments = self.__payment_history.get_order_payments(order)
-        # The date has no time on it, so recorded_at (when the payment was
-        # entered) decides between payments made on the same day.
-        payments.sort(
-            key=lambda payment: (
-                self.__parse_date(payment.payment_date),
-                payment.recorded_at,
-            )
-        )
-        return payments
-
-    def __parse_date(self, value: str) -> date:
-        """
-        Parse a DD-MM-YYYY date
-
-        :param value (str): Date string
-        :return (date): The parsed date
-        :raises ValueError: If the date is not a real DD-MM-YYYY date
-        """
-        try:
-            return datetime.strptime(value, "%d-%m-%Y").date()
-        except ValueError:
-            raise ValueError("Date must be in DD-MM-YYYY format") from None
+        existing = self.__history.find_order(order.order_id)
+        if existing is None:
+            raise ValueError("Order is not in the system")
+        return existing
 
     # ---------- Plant Methods ----------
 
@@ -409,20 +379,18 @@ class NurserySystem:
         """
         self.__require_team()
         stored = self.find_plant(plant.plant_id)
-        for order in self.__history.order_list:
-            for item in order.items:
-                if item.plant.plant_id == stored.plant_id:
-                    raise PlantInUseError(
-                        "Cannot remove a plant that has been ordered"
-                    )
+        if self.__history.has_orders_for_plant(stored):
+            raise PlantInUseError(
+                "Cannot remove a plant that has been ordered"
+            )
         self.__session.delete(stored)
 
-    def update_plant_price(self, plant: Plant, price: float) -> None:
+    def update_plant_price(self, plant: Plant, price: MoneyInput) -> None:
         """
         Change the price of a plant in the catalog
 
         :param plant (Plant): Plant to reprice
-        :param price (float): New price, must be greater than 0
+        :param price (MoneyInput): New price, must be greater than 0
         :raises NotAuthorisedError: If the user is not the nursery team
         :raises ValueError: If the plant is not in the catalog, or the price
             is not greater than 0
@@ -455,8 +423,8 @@ class NurserySystem:
         self,
         name: Optional[str] = None,
         plant_type: Optional[str] = None,
-        min_price: Optional[float] = None,
-        max_price: Optional[float] = None,
+        min_price: Optional[MoneyInput] = None,
+        max_price: Optional[MoneyInput] = None,
         in_stock_only: bool = False,
     ) -> list[Plant]:
         """
@@ -466,8 +434,8 @@ class NurserySystem:
             letter case
         :param plant_type (Optional[str]): trees and shrubs, perennials, pot
             plants, or vegetable seedlings
-        :param min_price (Optional[float]): Lowest price to include
-        :param max_price (Optional[float]): Highest price to include
+        :param min_price (Optional[MoneyInput]): Lowest price to include
+        :param max_price (Optional[MoneyInput]): Highest price to include
         :param in_stock_only (bool): When true, plants with no stock are left
             out
         :return (list[Plant]): Plants that match every filter that was set
@@ -487,11 +455,9 @@ class NurserySystem:
                 "Plant type must be trees and shrubs, perennials, "
                 "pot plants, or vegetable seedlings"
             )
-        if (
-            min_price is not None
-            and max_price is not None
-            and min_price > max_price
-        ):
+        lowest = None if min_price is None else to_money(min_price)
+        highest = None if max_price is None else to_money(max_price)
+        if lowest is not None and highest is not None and lowest > highest:
             raise ValueError("Minimum price cannot be above maximum price")
 
         matches = []
@@ -500,9 +466,9 @@ class NurserySystem:
                 continue
             if plant_type is not None and plant.plant_type() != plant_type:
                 continue
-            if min_price is not None and plant.plant_price < min_price:
+            if lowest is not None and plant.plant_price < lowest:
                 continue
-            if max_price is not None and plant.plant_price > max_price:
+            if highest is not None and plant.plant_price > highest:
                 continue
             if in_stock_only and plant.plant_stock <= 0:
                 continue
@@ -581,17 +547,13 @@ class NurserySystem:
         """
         self.__require_team()
         stored = self.find_customer(customer.cust_id)
-        for order in self.__history.order_list:
-            if order.customer.cust_id == stored.cust_id:
-                raise CustomerInUseError(
-                    "Cannot remove a customer who has placed an order"
-                )
-        linked_users = [
-            user
-            for user in self.__session.scalars(select(User)).all()
-            if user.customer is not None
-            and user.customer.cust_id == stored.cust_id
-        ]
+        if self.__history.has_orders_for_customer(stored):
+            raise CustomerInUseError(
+                "Cannot remove a customer who has placed an order"
+            )
+        linked_users = self.__session.scalars(
+            select(User).where(User._customer_id == stored.cust_id)
+        ).all()
         for user in linked_users:
             self.__session.delete(user)
         self.__session.flush()
@@ -748,7 +710,7 @@ class NurserySystem:
         self,
         customer: Customer,
         items: list[tuple[Plant, int]],
-        order_date: Optional[str] = None,
+        order_date: Optional[DateInput] = None,
     ) -> Order:
         """
         Place a new order after validating the customer and plants are
@@ -759,8 +721,8 @@ class NurserySystem:
         :param customer (Customer): The Customer placing the order
         :param items (list[tuple[Plant, int]]): A list of (plant, quantity)
             pairs to include on the order
-        :param order_date (Optional[str]): Optional order date in DD-MM-YYYY
-            format, defaults to today
+        :param order_date (Optional[DateInput]): Optional order date, as a
+            date or DD-MM-YYYY text, defaults to today
         :return (Order): The newly created Order object
         :raises NotAuthorisedError: If the user is not the team and not this
             customer
@@ -790,7 +752,7 @@ class NurserySystem:
         # Price the lines before the order is created. Creating it would
         # already reduce stock and add the total to the balance.
         seen_plant_ids = []
-        items_subtotal = 0.0
+        items_subtotal = ZERO
         for plant, quantity in items:
             plant_found = False
             for existing_plant in self.__catalog.plant_list:
@@ -838,23 +800,23 @@ class NurserySystem:
             customer on the order
         :raises ValueError: If no order with that ID is found
         """
-        for order in self.__history.order_list:
-            if order.order_id == order_id:
-                self.__require_self_or_team(order.customer)
-                return order
-        raise ValueError(f"No order found with ID {order_id}")
+        order = self.__history.find_order(order_id)
+        if order is None:
+            raise ValueError(f"No order found with ID {order_id}")
+        self.__require_self_or_team(order.customer)
+        return order
 
     def collect_order(
         self,
         order: Order,
-        collected_date: Optional[str] = None,
+        collected_date: Optional[DateInput] = None,
     ) -> None:
         """
         Mark an order as collected. Only the team can do this.
 
         :param order (Order): The Order to collect
-        :param collected_date (Optional[str]): Collection date in DD-MM-YYYY
-            format, defaults to today
+        :param collected_date (Optional[DateInput]): Collection date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises NotAuthorisedError: If the user is not the nursery team
         :raises ValueError: If the order is not in the system
         :raises OrderCannotBeCollectedError: If the order cannot be collected
@@ -871,7 +833,7 @@ class NurserySystem:
     def cancel_order(
         self,
         order: Order,
-        cancelled_date: Optional[str] = None,
+        cancelled_date: Optional[DateInput] = None,
     ) -> None:
         """
         Cancel a pending unpaid order, restore the stock, and take the total
@@ -879,8 +841,8 @@ class NurserySystem:
         can cancel one for them.
 
         :param order (Order): The Order to cancel
-        :param cancelled_date (Optional[str]): Cancellation date in DD-MM-YYYY
-            format, defaults to today
+        :param cancelled_date (Optional[DateInput]): Cancellation date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises NotAuthorisedError: If the user is not the team and not the
             customer on the order
         :raises ValueError: If the order is not in the system
@@ -921,12 +883,10 @@ class NurserySystem:
             )
         if customer is None:
             self.__require_team()
-            source = self.__history.order_list
         else:
             self.__require_self_or_team(customer)
             self.__require_registered_customer(customer)
-            source = self.__history.get_customer_order_history(customer)
-        return [order for order in source if order.order_status == status]
+        return self.__history.get_orders_with_status(status, customer)
 
     def orders_uncollected_for_seven_days(self) -> list[Order]:
         """
@@ -937,11 +897,10 @@ class NurserySystem:
         :raises NotAuthorisedError: If the user is not the nursery team
         """
         self.__require_team()
-        return [
-            order
-            for order in self.__history.order_list
-            if order.is_uncollected_too_long()
-        ]
+        # Placed this many days ago or earlier. Order.is_uncollected_too_long()
+        # applies the same rule to one order that is already loaded.
+        cutoff = date.today() - timedelta(days=UNCOLLECTED_AFTER_DAYS)
+        return self.__history.get_pending_orders_placed_by(cutoff)
 
     def get_customer_order_history(self, customer: Customer) -> list[Order]:
         """
@@ -1017,11 +976,11 @@ class NurserySystem:
             customer who paid
         :raises ValueError: If no payment with that ID is found
         """
-        for payment in self.__payment_history.payment_list:
-            if payment.payment_id == payment_id:
-                self.__require_self_or_team(payment.customer)
-                return payment
-        raise ValueError(f"No payment found with ID {payment_id}")
+        payment = self.__payment_history.find_payment(payment_id)
+        if payment is None:
+            raise ValueError(f"No payment found with ID {payment_id}")
+        self.__require_self_or_team(payment.customer)
+        return payment
 
     def get_customer_payments(self, customer: Customer) -> list[Payment]:
         """
@@ -1050,7 +1009,7 @@ class NurserySystem:
         """
         stored = self.__require_known_order(order)
         self.__require_self_or_team(stored.customer)
-        return self.__payments_in_time_order(stored)
+        return self.__payment_history.get_order_payments(stored)
 
     def display_all_payments(self) -> None:
         """
@@ -1112,11 +1071,13 @@ class NurserySystem:
         stored = self.find_payment(payment.payment_id)
         # Each receipt shows what was left after that payment, not the
         # balance once later payments have also been recorded.
-        paid_so_far = 0.0
+        paid_so_far = ZERO
         remaining = stored.order.order_total
-        for earlier in self.__payments_in_time_order(stored.order):
-            paid_so_far = round(paid_so_far + earlier.amount, 2)
-            remaining = round(stored.order.order_total - paid_so_far, 2)
+        for earlier in self.__payment_history.get_order_payments(
+            stored.order
+        ):
+            paid_so_far += earlier.amount
+            remaining = stored.order.order_total - paid_so_far
             if earlier.payment_id == stored.payment_id:
                 break
         return Receipt(stored, remaining)
@@ -1135,15 +1096,7 @@ class NurserySystem:
         """
         self.__require_team()
         stored = self.find_plant(plant.plant_id)
-        matches = [
-            order
-            for order in self.__history.order_list
-            if any(
-                item.plant.plant_id == stored.plant_id for item in order.items
-            )
-        ]
-        matches.sort(key=lambda order: self.__parse_date(order.order_date))
-        return matches
+        return self.__history.get_orders_for_plant(stored)
 
     def customer_activity(self, customer: Customer) -> list[ActivityRecord]:
         """
@@ -1158,66 +1111,49 @@ class NurserySystem:
         """
         self.__require_self_or_team(customer)
         self.__require_registered_customer(customer)
-        # History order is the tie-break when several things happen on one
-        # day, so a cancelled order stays with the order it belongs to.
-        recorded = {
-            order.order_id: index
-            for index, order in enumerate(self.__history.order_list)
-        }
+        # The database already returns this customer's orders and payments,
+        # oldest first. Here they are merged into one timeline. When several
+        # things happen on one day, the time the order was made is the
+        # tie-break, so a cancelled order stays with the order it belongs to,
+        # then placed, paid, collected, cancelled.
         action_order = {
             "placed": 0,
             "paid": 1,
             "collected": 2,
             "cancelled": 3,
         }
-        timed: list[tuple[int, ActivityRecord]] = []
+        timed: list[tuple[date, datetime, int, ActivityRecord]] = []
+
+        def add(
+            happened_on: date,
+            order: Order,
+            action: str,
+            detail: str,
+        ) -> None:
+            timed.append((
+                happened_on,
+                order.created_at,
+                action_order[action],
+                ActivityRecord(happened_on, action, detail),
+            ))
+
         for order in self.__history.get_customer_order_history(customer):
-            position = recorded[order.order_id]
-            timed.append((
-                position,
-                ActivityRecord(
-                    order.order_date,
-                    "placed",
-                    "Order {} placed".format(order.order_id),
-                ),
-            ))
+            add(order.order_date, order, "placed",
+                "Order {} placed".format(order.order_id))
             if order.collected_date is not None:
-                timed.append((
-                    position,
-                    ActivityRecord(
-                        order.collected_date,
-                        "collected",
-                        "Order {} collected".format(order.order_id),
-                    ),
-                ))
+                add(order.collected_date, order, "collected",
+                    "Order {} collected".format(order.order_id))
             if order.cancelled_date is not None:
-                timed.append((
-                    position,
-                    ActivityRecord(
-                        order.cancelled_date,
-                        "cancelled",
-                        "Order {} cancelled".format(order.order_id),
-                    ),
-                ))
+                add(order.cancelled_date, order, "cancelled",
+                    "Order {} cancelled".format(order.order_id))
         for payment in self.__payment_history.get_customer_payments(customer):
-            timed.append((
-                recorded[payment.order.order_id],
-                ActivityRecord(
-                    payment.payment_date,
-                    "paid",
-                    "Paid ${:.2f} toward order {}".format(
-                        payment.amount, payment.order.order_id
-                    ),
-                ),
-            ))
-        timed.sort(
-            key=lambda pair: (
-                self.__parse_date(pair[1].happened_on),
-                pair[0],
-                action_order[pair[1].action],
-            )
-        )
-        return [record for _position, record in timed]
+            add(payment.payment_date, payment.order, "paid",
+                "Paid ${:.2f} toward order {}".format(
+                    payment.amount, payment.order.order_id))
+        # Sorting is stable, so several payments on one day keep the order
+        # the database gave them.
+        timed.sort(key=lambda row: row[:3])
+        return [row[3] for row in timed]
 
     def __quantities_ordered(self) -> list[tuple[Plant, int]]:
         """
@@ -1226,16 +1162,11 @@ class NurserySystem:
 
         :return (list[tuple[Plant, int]]): Each plant and the quantity ordered
         """
-        counts = {
-            plant.plant_id: 0 for plant in self.__catalog.plant_list
-        }
-        for order in self.__history.order_list:
-            if order.order_status == "cancelled":
-                continue
-            for item in order.items:
-                counts[item.plant.plant_id] += item.quantity
+        # The database adds up the quantities. Plants that were never ordered
+        # have no row there, so they count as 0 here.
+        counts = self.__history.quantities_by_plant()
         return [
-            (plant, counts[plant.plant_id])
+            (plant, counts.get(plant.plant_id, 0))
             for plant in self.__catalog.plant_list
         ]
 
@@ -1266,22 +1197,24 @@ class NurserySystem:
         ranked.sort(key=lambda pair: (pair[1], pair[0].plant_name.casefold()))
         return ranked
 
-    def revenue(self, period: str, on_date: str) -> float:
+    def revenue(self, period: str, on_date: DateInput) -> Decimal:
         """
         Total the amount charged for payments in a day, week, or month. Card
         surcharges are included. A week is the given date plus the next six
         days. A month is the calendar month that contains the date.
 
         :param period (str): day, week, or month
-        :param on_date (str): A date in DD-MM-YYYY format
-        :return (float): The amount charged in that period
+        :param on_date (DateInput): A date, or DD-MM-YYYY text
+        :return (Decimal): The amount charged in that period
         :raises NotAuthorisedError: If the user is not the nursery team
         :raises ValueError: If the period or the date is invalid
         """
         self.__require_team()
         if period not in ("day", "week", "month"):
             raise ValueError("Period must be day, week, or month")
-        chosen = self.__parse_date(on_date)
+        if on_date is None:
+            raise ValueError("Date is required")
+        chosen = parse_date(on_date)
         if period == "day":
             start = chosen
             end = chosen
@@ -1296,12 +1229,10 @@ class NurserySystem:
                 next_month = date(chosen.year, chosen.month + 1, 1)
             end = next_month - timedelta(days=1)
 
-        total = 0.0
-        for payment in self.__payment_history.payment_list:
-            paid_on = self.__parse_date(payment.payment_date)
-            if start <= paid_on <= end:
-                total += payment.amount_charged()
-        return round(total, 2)
+        # The database picks the payments in the period. Each one works out
+        # its own surcharge, so the card rules stay on the payment classes.
+        payments = self.__payment_history.get_payments_between(start, end)
+        return sum((p.amount_charged() for p in payments), ZERO)
 
     # ---------- String Method ----------
 

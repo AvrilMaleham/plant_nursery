@@ -9,6 +9,7 @@ has to wait for the first to finish, and then see what the first one did.
 
 import threading
 import uuid
+from decimal import Decimal
 from typing import Callable, Optional
 
 import pytest
@@ -272,8 +273,8 @@ def test_two_payments_cannot_both_overpay_an_order(
         system = NurserySystem(session)
         system.login("teamUsername", "TeamPassword")
         stored = system.find_order(order_id)
-        assert stored.amount_paid == 10.00
-        assert stored.customer.balance == 5.99
+        assert stored.amount_paid == Decimal("10.00")
+        assert stored.customer.balance == Decimal("5.99")
 
 
 def test_failed_save_is_reported_not_hidden(

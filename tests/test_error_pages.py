@@ -11,6 +11,7 @@ and save into PostgreSQL, like the other integration tests.
 """
 
 import logging
+from decimal import Decimal
 
 import pytest
 from flask.testing import FlaskClient
@@ -176,7 +177,7 @@ def test_refusals_are_explained_on_the_page(client: FlaskClient) -> None:
         settled_path = f"/orders/{settled.order_id}"
         open_path = f"/orders/{open_order.order_id}"
         owed = f"${open_order.remaining_balance:.2f}"
-        too_much = f"{open_order.remaining_balance + 0.01:.2f}"
+        too_much = f"{open_order.remaining_balance + Decimal('0.01'):.2f}"
 
     login(client, "teamUsername", "TeamPassword")
 

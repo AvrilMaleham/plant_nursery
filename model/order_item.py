@@ -1,15 +1,24 @@
 import uuid
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Integer, Numeric, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    Numeric,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .exceptions import InsufficientStockError
+from .money import apply_rate, to_money
 from .plant import Plant
 
 # Ten or more of the same plant on one line gets this discount.
 BULK_DISCOUNT_QUANTITY = 10
-BULK_DISCOUNT_RATE = 0.10
+BULK_DISCOUNT_RATE = Decimal("0.10")
 
 
 class OrderItem(Base):
@@ -18,10 +27,21 @@ class OrderItem(Base):
     """
 
     __tablename__ = "order_items"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_order_items_quantity"),
+        CheckConstraint("item_cost > 0", name="ck_order_items_cost"),
+        # A plant appears once on an order. The order form adds the quantities
+        # together, and place_order() refuses a repeat.
+        UniqueConstraint(
+            "order_id", "plant_id", name="uq_order_items_order_plant"
+        ),
+    )
 
     _item_id: Mapped[uuid.UUID] = mapped_column(
         "item_id", Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    # The unique constraint above starts with order_id, so it also serves as
+    # the index for finding the lines of an order. plant_id needs its own.
     _order_id: Mapped[uuid.UUID] = mapped_column(
         "order_id",
         Uuid(as_uuid=True),
@@ -33,9 +53,10 @@ class OrderItem(Base):
         Uuid(as_uuid=True),
         ForeignKey("plants.plant_id"),
         nullable=False,
+        index=True,
     )
     _quantity: Mapped[int] = mapped_column("quantity", Integer, nullable=False)
-    _item_cost: Mapped[float] = mapped_column(
+    _item_cost: Mapped[Decimal] = mapped_column(
         "item_cost", Numeric(10, 2), nullable=False
     )
     _plant: Mapped[Plant] = relationship()
@@ -85,13 +106,13 @@ class OrderItem(Base):
         return int(self._quantity)
 
     @property
-    def item_cost(self) -> float:
+    def item_cost(self) -> Decimal:
         """
         Get the cost of this item after any bulk discount
 
-        :return (float): The cost of this item after any bulk discount
+        :return (Decimal): The cost of this item after any bulk discount
         """
-        return float(self._item_cost)
+        return Decimal(self._item_cost)
 
     # ---------- Methods ----------
 
@@ -113,31 +134,31 @@ class OrderItem(Base):
                 f"Insufficient stock: only {plant.plant_stock} available")
 
     @staticmethod
-    def line_cost(plant: Plant, quantity: int) -> float:
+    def line_cost(plant: Plant, quantity: int) -> Decimal:
         """
         Calculate a line cost without reducing stock
 
         :param plant (Plant): The plant being priced
         :param quantity (int): Quantity in that plant's sale unit
-        :return (float): The item cost after any bulk discount
+        :return (Decimal): The item cost after any bulk discount
         :raises ValueError: If quantity is not greater than 0
         :raises InsufficientStockError: If there is not enough stock
         """
         OrderItem.validate(plant, quantity)
-        subtotal = plant.plant_price * quantity
+        subtotal = to_money(plant.plant_price * quantity)
         # 10 or more of the same plant (same catalog entry, so the same pot
         # size or the same seedling type) gets 10% off this line only.
         if quantity >= BULK_DISCOUNT_QUANTITY:
-            return round(subtotal * (1 - BULK_DISCOUNT_RATE), 2)
-        return round(subtotal, 2)
+            return apply_rate(subtotal, BULK_DISCOUNT_RATE)
+        return subtotal
 
-    def __calculate_cost(self) -> float:
+    def __calculate_cost(self) -> Decimal:
         """
         Calculate the line cost, applying a 10% discount for quantities of 10
         or more.
 
-        :return (float): The item cost after any applicable discount, rounded
-            to 2 decimal places
+        :return (Decimal): The item cost after any applicable discount, in
+            whole cents
         """
         return OrderItem.line_cost(self.plant, self.quantity)
 

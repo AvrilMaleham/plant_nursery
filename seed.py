@@ -17,8 +17,8 @@ def main() -> None:
     """
     Replace the nursery tables with the sample data and print them.
     """
-    ten_days_ago = (date.today() - timedelta(days=10)).strftime("%d-%m-%Y")
-    today = date.today().strftime("%d-%m-%Y")
+    ten_days_ago = date.today() - timedelta(days=10)
+    today = date.today()
 
     reset_database()
     with session_scope() as session:

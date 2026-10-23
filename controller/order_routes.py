@@ -2,7 +2,6 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 
 from flask import flash, g, redirect, render_template, request, url_for
 
@@ -15,7 +14,7 @@ from controller.blueprint import (
     system,
 )
 from controller.customer_routes import every_customer
-from controller.parsing import read_float, text
+from controller.parsing import read_money, text
 from model.order import Order
 from model.payment import CreditCardPayment, DebitCardPayment
 
@@ -90,7 +89,8 @@ def orders() -> str:
     shown.sort(
         key=lambda row: (
             not row.needs_follow_up,
-            datetime.strptime(row.order.order_date, "%d-%m-%Y"),
+            row.order.order_date,
+            row.order.created_at,
         )
     )
     return render_template("orders.html", orders=shown, status=status)
@@ -195,7 +195,7 @@ def pay_order(order_id: uuid.UUID) -> str:
     """
     try:
         order = system().find_order(order_id)
-        amount = read_float(request.form.get("amount"), "Amount")
+        amount = read_money(request.form.get("amount"), "Amount")
         card = text(request.form.get("card_number"))
         method = text(request.form.get("method"))
         # The payment subclass owns the surcharge. This only picks which one

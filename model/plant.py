@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from typing import Literal, Optional, get_args
 
 from sqlalchemy import CheckConstraint, Integer, Numeric, String, Uuid
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 from .exceptions import InsufficientStockError
+from .money import MoneyInput, to_money
 
 # Pot size is only used by PotPlant. A Literal is used so anything outside
 # small, medium, or large is rejected on creation.
@@ -62,7 +64,7 @@ class Plant(Base):
     _plant_name: Mapped[str] = mapped_column(
         "plant_name", String(200), nullable=False
     )
-    _plant_price: Mapped[float] = mapped_column(
+    _plant_price: Mapped[Decimal] = mapped_column(
         "plant_price", Numeric(10, 2), nullable=False
     )
     _plant_stock: Mapped[int] = mapped_column(
@@ -110,7 +112,7 @@ class Plant(Base):
     def __init__(
         self,
         plant_name: str,
-        plant_price: float,
+        plant_price: MoneyInput,
         plant_stock: int,
         image_filename: str,
     ) -> None:
@@ -119,7 +121,8 @@ class Plant(Base):
 
         :param plant_name (str): Name of the plant (does not need to be unique,
             same name can have different price/stock)
-        :param plant_price (float): Price of the plant, must be greater than 0
+        :param plant_price (MoneyInput): Price of the plant, must be greater
+            than 0
         :param plant_stock (int): Stock on hand for this plant, must be greater
             than 0
         :param image_filename (str): File name of the plant photo
@@ -180,25 +183,27 @@ class Plant(Base):
         return self._image_filename
 
     @property
-    def plant_price(self) -> float:
+    def plant_price(self) -> Decimal:
         """
         Get the plant price
 
-        :return (float): The plant price
+        :return (Decimal): The plant price in whole cents
         """
-        return float(self._plant_price)
+        return Decimal(self._plant_price)
 
     @plant_price.setter
-    def plant_price(self, value: float) -> None:
+    def plant_price(self, value: MoneyInput) -> None:
         """
         Update the price of the plant
 
-        :param value (float): New price, must be greater than 0
-        :raises ValueError: If value is not greater than 0
+        :param value (MoneyInput): New price, must be greater than 0. It is
+            rounded to whole cents
+        :raises ValueError: If value is not a number or is not greater than 0
         """
-        if value <= 0:
+        price = to_money(value, "Plant price")
+        if price <= 0:
             raise ValueError("Plant price must be greater than 0")
-        self._plant_price = value
+        self._plant_price = price
 
     @property
     def plant_stock(self) -> int:
@@ -374,7 +379,7 @@ class PotPlant(Plant):
     def __init__(
         self,
         plant_name: str,
-        plant_price: float,
+        plant_price: MoneyInput,
         plant_stock: int,
         image_filename: str,
         pot_size: PotSize,
@@ -383,7 +388,8 @@ class PotPlant(Plant):
         Initialise a new PotPlant object
 
         :param plant_name (str): Name of the plant
-        :param plant_price (float): Price for this pot size, must be greater
+        :param plant_price (MoneyInput): Price for this pot size, must be
+            greater
             than 0
         :param plant_stock (int): Number of pots on hand, must be greater than
             0
@@ -447,7 +453,7 @@ class VegetableSeedling(Plant):
     def __init__(
         self,
         plant_name: str,
-        plant_price: float,
+        plant_price: MoneyInput,
         plant_stock: int,
         image_filename: str,
         seedlings_per_punnet: int = 6,
@@ -456,7 +462,8 @@ class VegetableSeedling(Plant):
         Initialise a new VegetableSeedling object
 
         :param plant_name (str): Name of the plant
-        :param plant_price (float): Price per punnet, must be greater than 0
+        :param plant_price (MoneyInput): Price per punnet, must be greater
+            than 0
         :param plant_stock (int): Number of punnets on hand, must be greater
             than 0
         :param image_filename (str): File name of the plant photo

@@ -33,7 +33,7 @@
       <tbody>
         {% for order, needs_follow_up in orders %}
           <tr {% if needs_follow_up %}class="follow-up"{% endif %}>
-            <td>{{ order.order_date }}</td>
+            <td>{{ order.order_date|dmy }}</td>
             <td>{{ order.order_status }}</td>
             <td>${{ "%.2f"|format(order.order_total) }}</td>
             <td>${{ "%.2f"|format(order.remaining_balance) }}</td>
@@ -55,7 +55,7 @@
       {% for payment in payments %}
         <li>
           <a href="{{ url_for('nursery.receipt', payment_id=payment.payment_id) }}">
-            {{ payment.payment_date }} · {{ payment.payment_type() }} · ${{ "%.2f"|format(payment.amount) }}
+            {{ payment.payment_date|dmy }} · {{ payment.payment_type() }} · ${{ "%.2f"|format(payment.amount) }}
           </a>
         </li>
       {% endfor %}
@@ -68,7 +68,7 @@
   {% if activity %}
     <ol class="timeline">
       {% for record in activity %}
-        <li><span>{{ record.happened_on }}</span> {{ record.detail }}</li>
+        <li><span>{{ record.happened_on|dmy }}</span> {{ record.detail }}</li>
       {% endfor %}
     </ol>
   {% else %}

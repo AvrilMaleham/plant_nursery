@@ -1,12 +1,15 @@
 import re
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Uuid,
@@ -15,11 +18,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .customer import Customer
+from .dates import DateInput, format_date, parse_date
+from .money import MoneyInput, to_money
 from .order import Order
 
 # Added to what the customer pays. Debit cards have no surcharge.
-CREDIT_CARD_SURCHARGE_RATE = 0.015
-DEBIT_CARD_SURCHARGE_RATE = 0.0
+CREDIT_CARD_SURCHARGE_RATE = Decimal("0.015")
+DEBIT_CARD_SURCHARGE_RATE = Decimal("0")
 
 # Card numbers are 13 to 19 digits long. Only the last four are kept.
 MIN_CARD_DIGITS = 13
@@ -58,6 +63,14 @@ class Payment(Base):
             "payment_type = 'debit card' OR bank_name IS NULL",
             name="ck_payments_bank_only",
         ),
+        # A customer's payments, and an order's payments in the order they
+        # were made. The date index also serves the revenue report.
+        Index("ix_payments_customer_id", "customer_id"),
+        Index(
+            "ix_payments_order_id_when",
+            "order_id", "payment_date", "created_at",
+        ),
+        Index("ix_payments_payment_date", "payment_date"),
     )
 
     # Single-table inheritance. Expiry date and bank name sit on this table
@@ -80,7 +93,7 @@ class Payment(Base):
         ForeignKey("orders.order_id"),
         nullable=False,
     )
-    _amount: Mapped[float] = mapped_column(
+    _amount: Mapped[Decimal] = mapped_column(
         "amount", Numeric(10, 2), nullable=False
     )
     # Only the last four digits of the card are stored, never the whole
@@ -88,14 +101,15 @@ class Payment(Base):
     _card_last4: Mapped[str] = mapped_column(
         "card_last4", String(4), nullable=False
     )
-    _payment_date: Mapped[str] = mapped_column(
-        "payment_date", String(10), nullable=False
+    _payment_date: Mapped[date] = mapped_column(
+        "payment_date", Date, nullable=False
     )
     # payment_date is a day with no time, so two payments on one day cannot be
-    # told apart by it. This is when the payment was entered, so receipts can
-    # list payments in the order they happened.
-    _recorded_at: Mapped[datetime] = mapped_column(
-        "recorded_at", DateTime, nullable=False
+    # told apart by it. This is when the payment was entered, so payments can
+    # be listed in the order they happened. The database sorts on
+    # (payment_date, created_at).
+    _created_at: Mapped[datetime] = mapped_column(
+        "created_at", DateTime, nullable=False
     )
     _expiry_date: Mapped[Optional[str]] = mapped_column(
         "expiry_date", String(20), nullable=True
@@ -131,26 +145,28 @@ class Payment(Base):
         self,
         customer: Customer,
         order: Order,
-        amount: float,
+        amount: MoneyInput,
         card_number: str,
-        payment_date: Optional[str] = None,
+        payment_date: Optional[DateInput] = None,
     ) -> None:
         """
         Initialise a new Payment object
 
         :param customer (Customer): The customer making the payment
         :param order (Order): The order this payment is toward
-        :param amount (float): Amount applied to the order, must be greater
-            than 0
+        :param amount (MoneyInput): Amount applied to the order, must be
+            greater than 0. It is rounded to whole cents
         :param card_number (str): The full card number, as typed. It is
             checked here, and only its last four digits are kept
-        :param payment_date (Optional[str]): Optional payment date in
-            DD-MM-YYYY format, defaults to today. It cannot be in the future
+        :param payment_date (Optional[DateInput]): Optional payment date, as a
+            date or DD-MM-YYYY text, defaults to today. It cannot be in the
+            future
         :raises ValueError: If amount is not greater than 0, the card number
             is missing or is not 13 to 19 digits, or the payment date is
             invalid or in the future
         """
-        if amount <= 0:
+        paid = to_money(amount, "Payment amount")
+        if paid <= 0:
             raise ValueError("Payment amount must be greater than 0")
         # Both credit and debit payments record a card, so the check lives
         # here.
@@ -161,12 +177,12 @@ class Payment(Base):
         self._payment_id = uuid.uuid4()
         self._customer = customer
         self._order = order
-        self._amount = round(amount, 2)
+        self._amount = paid
         # The full number is not kept on the object, so it cannot be saved or
         # printed by accident later.
         self._card_last4 = digits[-CARD_DIGITS_KEPT:]
-        self._payment_date = paid_on.strftime("%d-%m-%Y")
-        self._recorded_at = datetime.now()
+        self._payment_date = paid_on
+        self._created_at = datetime.now()
 
     # ---------- Getters and Setters ----------
     # A recorded payment is a snapshot. ID, customer, order, amount, card
@@ -200,32 +216,32 @@ class Payment(Base):
         return self._order
 
     @property
-    def amount(self) -> float:
+    def amount(self) -> Decimal:
         """
         Get the amount applied to the order, not including any surcharge
 
-        :return (float): The amount applied to the order, not including any
+        :return (Decimal): The amount applied to the order, not including any
             surcharge
         """
-        return float(self._amount)
+        return Decimal(self._amount)
 
     @property
-    def payment_date(self) -> str:
+    def payment_date(self) -> date:
         """
         Get the date of the payment
 
-        :return (str): The date of the payment
+        :return (date): The date of the payment
         """
         return self._payment_date
 
     @property
-    def recorded_at(self) -> datetime:
+    def created_at(self) -> datetime:
         """
         Get when the payment was entered into the system
 
         :return (datetime): The date and time the payment was entered
         """
-        return self._recorded_at
+        return self._created_at
 
     @property
     def card_last4(self) -> str:
@@ -265,38 +281,32 @@ class Payment(Base):
         return digits
 
     @staticmethod
-    def _parse_payment_date(payment_date: Optional[str]) -> date:
+    def _parse_payment_date(payment_date: Optional[DateInput]) -> date:
         """
         Check a payment date and return it as a date
 
-        :param payment_date (Optional[str]): Date string in DD-MM-YYYY format,
-            or None for today
+        :param payment_date (Optional[DateInput]): A date, DD-MM-YYYY text, or
+            None for today
         :return (date): The payment date
-        :raises ValueError: If the date is not a valid calendar date in
-            DD-MM-YYYY format, or is in the future
+        :raises ValueError: If the text is not a valid calendar date in
+            DD-MM-YYYY format, or the date is in the future
         """
-        if payment_date is None:
-            return date.today()
-        try:
-            paid_on = datetime.strptime(payment_date, "%d-%m-%Y").date()
-        except (TypeError, ValueError):
-            raise ValueError(
-                "Payment date must be a valid date in DD-MM-YYYY format")
+        paid_on = parse_date(payment_date, "Payment date")
         # A payment is recorded when it is taken, so it cannot be ahead of
         # today.
         if paid_on > date.today():
             raise ValueError("Payment date cannot be in the future")
         return paid_on
 
-    def amount_charged(self) -> float:
+    def amount_charged(self) -> Decimal:
         """
         Return what the customer is charged, including any surcharge
 
-        :return (float): The charged amount, rounded to 2 decimal places
+        :return (Decimal): The charged amount, in whole cents
         """
         # surcharge_rate() is supplied by the concrete subclass, the same way
         # apply_discount() uses discount_rate().
-        return round(self.amount * (1 + self.surcharge_rate()), 2)
+        return to_money(self.amount * (1 + self.surcharge_rate()))
 
     def payment_type(self) -> str:
         """
@@ -306,11 +316,11 @@ class Payment(Base):
         """
         return self.kind
 
-    def surcharge_rate(self) -> float:
+    def surcharge_rate(self) -> Decimal:
         """
-        Return this payment's surcharge rate as a decimal
+        Return this payment's surcharge rate as a fraction
 
-        :return (float): This payment's surcharge rate as a decimal
+        :return (Decimal): This payment's surcharge rate as a fraction
         """
         raise NotImplementedError
 
@@ -327,7 +337,7 @@ class Payment(Base):
                 self.payment_id, self.payment_type(),
                 self.amount, self.amount_charged(),
                 self.customer.cust_name, self.order.order_id,
-                self.payment_date, self.card_last4,
+                format_date(self.payment_date), self.card_last4,
             )
         )
 
@@ -346,23 +356,23 @@ class CreditCardPayment(Payment):
         self,
         customer: Customer,
         order: Order,
-        amount: float,
+        amount: MoneyInput,
         card_number: str,
         expiry_date: str,
-        payment_date: Optional[str] = None,
+        payment_date: Optional[DateInput] = None,
     ) -> None:
         """
         Initialise a new CreditCardPayment object
 
         :param customer (Customer): The customer making the payment
         :param order (Order): The order this payment is toward
-        :param amount (float): Amount applied to the order, must be greater
-            than 0
+        :param amount (MoneyInput): Amount applied to the order, must be
+            greater than 0
         :param card_number (str): Credit card number
         :param expiry_date (str): Card expiry date as MM-YY. The card is good
             until the end of that month
-        :param payment_date (Optional[str]): Optional payment date in
-            DD-MM-YYYY format, defaults to today
+        :param payment_date (Optional[DateInput]): Optional payment date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises ValueError: If amount is not greater than 0, the card number
             is missing or not 13 to 19 digits, the expiry is missing, is not
             a real MM-YY, or has passed by the payment date, or the payment
@@ -375,14 +385,14 @@ class CreditCardPayment(Payment):
 
     @classmethod
     def __clean_expiry(
-        cls, expiry_date: str, payment_date: Optional[str]
+        cls, expiry_date: str, payment_date: Optional[DateInput]
     ) -> str:
         """
         Check an expiry date against the day the payment is made
 
         :param expiry_date (str): The expiry as typed, in MM-YY form
-        :param payment_date (Optional[str]): The payment date in DD-MM-YYYY
-            form, or None for today
+        :param payment_date (Optional[DateInput]): The payment date, or None
+            for today
         :return (str): The expiry, with any spaces around it removed
         :raises ValueError: If it is missing, is not MM-YY with a month from
             01 to 12, or the card had expired by the payment date
@@ -419,11 +429,11 @@ class CreditCardPayment(Payment):
         """
         return self.TYPE_NAME
 
-    def surcharge_rate(self) -> float:
+    def surcharge_rate(self) -> Decimal:
         """
-        Return this payment's surcharge rate as a decimal
+        Return this payment's surcharge rate as a fraction
 
-        :return (float): This payment's surcharge rate as a decimal
+        :return (Decimal): This payment's surcharge rate as a fraction
         """
         return CREDIT_CARD_SURCHARGE_RATE
 
@@ -451,22 +461,22 @@ class DebitCardPayment(Payment):
         self,
         customer: Customer,
         order: Order,
-        amount: float,
+        amount: MoneyInput,
         card_number: str,
         bank_name: str,
-        payment_date: Optional[str] = None,
+        payment_date: Optional[DateInput] = None,
     ) -> None:
         """
         Initialise a new DebitCardPayment object
 
         :param customer (Customer): The customer making the payment
         :param order (Order): The order this payment is toward
-        :param amount (float): Amount applied to the order, must be greater
-            than 0
+        :param amount (MoneyInput): Amount applied to the order, must be
+            greater than 0
         :param card_number (str): Debit card number
         :param bank_name (str): Name of the bank the card is with
-        :param payment_date (Optional[str]): Optional payment date in
-            DD-MM-YYYY format, defaults to today
+        :param payment_date (Optional[DateInput]): Optional payment date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises ValueError: If amount is not greater than 0, the card number
             is missing or not 13 to 19 digits, the bank name is missing or
             longer than 100 characters, or the payment date is invalid or in
@@ -500,11 +510,11 @@ class DebitCardPayment(Payment):
         """
         return self.TYPE_NAME
 
-    def surcharge_rate(self) -> float:
+    def surcharge_rate(self) -> Decimal:
         """
-        Return this payment's surcharge rate as a decimal
+        Return this payment's surcharge rate as a fraction
 
-        :return (float): This payment's surcharge rate as a decimal
+        :return (Decimal): This payment's surcharge rate as a fraction
         """
         return DEBIT_CARD_SURCHARGE_RATE
 

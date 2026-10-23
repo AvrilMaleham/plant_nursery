@@ -8,6 +8,7 @@ the price search, revenue periods, and receipts.
 """
 
 from datetime import date, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Callable
 
@@ -57,7 +58,7 @@ PASSWORD = "Password1"
 def add_plant(
     system: NurserySystem,
     name: str = "Rose",
-    price: float = 15.99,
+    price: Decimal | float = 15.99,
     stock: int = 25,
 ) -> Plant:
     """
@@ -65,7 +66,7 @@ def add_plant(
 
     :param system (NurserySystem): The system, logged in as the team
     :param name (str): Plant name
-    :param price (float): Price per plant
+    :param price (Decimal | float): Price per plant
     :param stock (int): Stock on hand
     :return (Plant): The new plant
     """
@@ -129,7 +130,7 @@ def day(days_ago: int = 0) -> str:
 def pay(
     system: NurserySystem,
     order: Order,
-    amount: float,
+    amount: Decimal | float,
     on: str,
     credit: bool = False,
 ) -> Payment:
@@ -138,7 +139,7 @@ def pay(
 
     :param system (NurserySystem): The system to record it on
     :param order (Order): The order being paid
-    :param amount (float): The amount applied to the order
+    :param amount (Decimal | float): The amount applied to the order
     :param on (str): The payment date in DD-MM-YYYY form
     :param credit (bool): Use a credit card, which adds a surcharge
     :return (Payment): The recorded payment
@@ -391,8 +392,8 @@ def test_a_customer_can_use_their_own_records(world: SimpleNamespace) -> None:
         world.avril_order.order_total
     )
     payment = pay(nursery, world.avril_order, 5.00, day())
-    assert nursery.receipt_for(payment).remaining_on_order == pytest.approx(
-        world.avril_order.order_total - 5.00
+    assert nursery.receipt_for(payment).remaining_on_order == (
+        world.avril_order.order_total - Decimal("5.00")
     )
     assert nursery.get_customer_order_history(world.avril) == [
         world.avril_order
@@ -427,7 +428,7 @@ def test_a_customer_can_cancel_their_own_unpaid_order(
     nursery.cancel_order(world.avril_order)
     assert world.avril_order.order_status == "cancelled"
     assert world.rose.plant_stock == stock_before + 1
-    assert world.avril.balance == 0.0
+    assert world.avril.balance == Decimal("0.0")
 
 
 # ---------- place_order refusals ----------
@@ -447,7 +448,7 @@ def test_staff_cannot_place_an_order_that_takes_them_over_100(
         system.place_order(avril, [(plant, 3)])
 
     assert plant.plant_stock == stock_before
-    assert avril.balance == 70.00
+    assert avril.balance == Decimal("70.00")
     assert system.history.order_list == []
 
 
@@ -462,8 +463,8 @@ def test_an_order_that_reaches_exactly_100_is_allowed(
     order = system.place_order(avril, [(plant, 1)])
 
     # $40.40 less 1% is $40.00, so the balance is $100.00 exactly.
-    assert order.order_total == 40.00
-    assert avril.balance == 100.00
+    assert order.order_total == Decimal("40.00")
+    assert avril.balance == Decimal("100.00")
     # Owing $100 now blocks any further order.
     with pytest.raises(OrderNotAllowedError, match=r"over \$100"):
         system.place_order(avril, [(plant, 1)])
@@ -514,7 +515,7 @@ def test_an_order_for_more_than_the_stock_is_refused(
     with pytest.raises(InsufficientStockError, match="only 3 available"):
         system.place_order(sam, [(plant, 4)])
     assert plant.plant_stock == 3
-    assert sam.balance == 0.0
+    assert sam.balance == Decimal("0.0")
     assert system.history.order_list == []
 
 
@@ -529,7 +530,7 @@ def test_a_later_line_with_too_little_stock_leaves_the_earlier_one_alone(
         system.place_order(sam, [(rose, 5), (fern, 2)])
     assert rose.plant_stock == 10
     assert fern.plant_stock == 1
-    assert sam.balance == 0.0
+    assert sam.balance == Decimal("0.0")
 
 
 @pytest.mark.parametrize("quantity", [0, -1])
@@ -576,7 +577,7 @@ def test_an_order_cannot_repeat_a_plant_or_be_empty_or_misdated(
         system.place_order(sam, [(plant, 1)], "31-02-2026")
 
     assert plant.plant_stock == 25
-    assert sam.balance == 0.0
+    assert sam.balance == Decimal("0.0")
 
 
 def test_a_team_order_gets_the_same_rules_as_the_customers_own(
@@ -601,7 +602,7 @@ def test_an_order_cannot_be_cancelled_after_a_payment(
     with pytest.raises(OrderCannotBeCancelledError, match="paid toward"):
         nursery.cancel_order(world.sam_order)
     assert world.rose.plant_stock == stock
-    assert world.sam.balance == world.sam_order.order_total - 10.00
+    assert world.sam.balance == world.sam_order.order_total - Decimal("10.00")
 
 
 def test_a_community_order_is_not_collected_until_paid(
@@ -634,13 +635,13 @@ def test_payments_are_checked_against_the_order(
     too_much = DebitCardPayment(
         world.sam,
         world.sam_order,
-        world.sam_order.order_total + 0.01,
+        world.sam_order.order_total + Decimal("0.01"),
         "1111222233334444",
         "ANZ",
     )
     with pytest.raises(OverpaymentError, match="still owed"):
         nursery.record_payment(too_much)
-    assert world.sam_order.amount_paid == 0.0
+    assert world.sam_order.amount_paid == Decimal("0.0")
 
 
 def test_only_the_last_four_card_digits_reach_the_database(
@@ -671,7 +672,7 @@ def test_only_the_last_four_card_digits_reach_the_database(
     memory_session.flush()
 
     rows = memory_session.execute(
-        text("SELECT * FROM payments ORDER BY recorded_at")
+        text("SELECT * FROM payments ORDER BY created_at")
     ).mappings().all()
     assert [row["card_last4"] for row in rows] == ["4444", "8888"]
     assert "card_number" not in rows[0].keys()
@@ -680,7 +681,7 @@ def test_only_the_last_four_card_digits_reach_the_database(
         assert whole not in saved
     # A receipt is built without the card number, and still has everything.
     first = nursery.get_order_payments(world.sam_order)[0]
-    assert nursery.receipt_for(first).amount == 10.00
+    assert nursery.receipt_for(first).amount == Decimal("10.00")
 
 
 def test_a_cancelled_order_cannot_be_paid(world: SimpleNamespace) -> None:
@@ -690,7 +691,7 @@ def test_a_cancelled_order_cannot_be_paid(world: SimpleNamespace) -> None:
     nursery.cancel_order(world.sam_order)
     with pytest.raises(OrderNotPayableError, match="has been cancelled"):
         pay(nursery, world.sam_order, 1.00, day())
-    assert world.sam_order.amount_paid == 0.0
+    assert world.sam_order.amount_paid == Decimal("0.0")
 
 
 def test_a_fully_paid_order_cannot_be_paid_again(
@@ -714,10 +715,10 @@ def test_overpaying_names_what_is_still_owed(world: SimpleNamespace) -> None:
     left = world.sam_order.remaining_balance
 
     with pytest.raises(OverpaymentError, match=rf"\${left:.2f}"):
-        pay(nursery, world.sam_order, left + 0.01, day())
+        pay(nursery, world.sam_order, left + Decimal("0.01"), day())
     # Paying exactly what is left is still fine.
     pay(nursery, world.sam_order, left, day())
-    assert world.sam_order.remaining_balance == 0.0
+    assert world.sam_order.remaining_balance == Decimal("0.0")
 
 
 def test_orders_waiting_seven_days_are_listed(system: NurserySystem) -> None:
@@ -824,16 +825,21 @@ def test_customer_details_can_change_but_keep_one_way_to_contact(
 
 # ---------- Searching and the price bands ----------
 
-PRICES = [0.01, 9.99, 10.00, 10.01, 29.99, 30.00, 30.01, 100.00]
+PRICES = [
+    Decimal(price)
+    for price in (
+        "0.01", "9.99", "10.00", "10.01", "29.99", "30.00", "30.01", "100.00"
+    )
+]
 
 
 @pytest.fixture
-def priced_plants(system: NurserySystem) -> dict[float, Plant]:
+def priced_plants(system: NurserySystem) -> dict[Decimal, Plant]:
     """
     Give a test one plant at each boundary price.
 
     :param system (NurserySystem): The system, logged in as the team
-    :return (dict[float, Plant]): The plants, by price
+    :return (dict[Decimal, Plant]): The plants, by price
     """
     return {
         price: add_plant(system, f"Plant {price}", price=price, stock=5)
@@ -855,9 +861,9 @@ def band_limits(band: str) -> tuple[object, object]:
 
 def test_each_price_band_turns_into_the_right_limits() -> None:
     """The search form's bands become the limits Brent described."""
-    assert band_limits("under-10") == (None, 9.99)
-    assert band_limits("10-30") == (10.0, 30.0)
-    assert band_limits("over-30") == (30.01, None)
+    assert band_limits("under-10") == (None, Decimal("9.99"))
+    assert band_limits("10-30") == (Decimal("10.00"), Decimal("30.00"))
+    assert band_limits("over-30") == (Decimal("30.01"), None)
     assert band_limits("") == (None, None)
     assert band_limits("nonsense") == (None, None)
 
@@ -865,20 +871,20 @@ def test_each_price_band_turns_into_the_right_limits() -> None:
 @pytest.mark.parametrize(
     ("price", "band"),
     [
-        (0.01, "under-10"),
-        (9.99, "under-10"),
-        (10.00, "10-30"),
-        (10.01, "10-30"),
-        (29.99, "10-30"),
-        (30.00, "10-30"),
-        (30.01, "over-30"),
-        (100.00, "over-30"),
+        (Decimal("0.01"), "under-10"),
+        (Decimal("9.99"), "under-10"),
+        (Decimal("10.00"), "10-30"),
+        (Decimal("10.01"), "10-30"),
+        (Decimal("29.99"), "10-30"),
+        (Decimal("30.00"), "10-30"),
+        (Decimal("30.01"), "over-30"),
+        (Decimal("100.00"), "over-30"),
     ],
 )
 def test_a_price_on_a_boundary_is_in_exactly_one_band(
     system: NurserySystem,
-    priced_plants: dict[float, Plant],
-    price: float,
+    priced_plants: dict[Decimal, Plant],
+    price: Decimal,
     band: str,
 ) -> None:
     """$10.00 and $30.00 are in the middle band, and never in two bands."""
@@ -892,15 +898,15 @@ def test_a_price_on_a_boundary_is_in_exactly_one_band(
 
 
 def test_price_limits_include_the_price_they_name(
-    system: NurserySystem, priced_plants: dict[float, Plant]
+    system: NurserySystem, priced_plants: dict[Decimal, Plant]
 ) -> None:
     """A search from $10 to $30 includes a plant at exactly $10 and $30."""
     found = system.search_plants(min_price=10.00, max_price=30.00)
     assert {plant.plant_price for plant in found} == {
-        10.00,
-        10.01,
-        29.99,
-        30.00,
+        Decimal("10.00"),
+        Decimal("10.01"),
+        Decimal("29.99"),
+        Decimal("30.00"),
     }
 
 
@@ -990,7 +996,7 @@ def test_revenue_for_a_day_counts_only_that_day(
         big_order,
         {"14-10-2025": 1, "15-10-2025": 10, "16-10-2025": 100},
     )
-    assert system.revenue("day", "15-10-2025") == 10.00
+    assert system.revenue("day", "15-10-2025") == Decimal("10.00")
 
 
 def test_revenue_for_a_week_is_seven_days_from_the_date(
@@ -1008,7 +1014,7 @@ def test_revenue_for_a_week_is_seven_days_from_the_date(
             "22-10-2025": 500,
         },
     )
-    assert system.revenue("week", "15-10-2025") == 110.00
+    assert system.revenue("week", "15-10-2025") == Decimal("110.00")
 
 
 def test_revenue_for_a_month_runs_from_the_first_to_the_last_day(
@@ -1025,9 +1031,9 @@ def test_revenue_for_a_month_runs_from_the_first_to_the_last_day(
             "01-11-2025": 200,
         },
     )
-    assert system.revenue("month", "15-10-2025") == 110.00
-    assert system.revenue("month", "01-10-2025") == 110.00
-    assert system.revenue("month", "31-10-2025") == 110.00
+    assert system.revenue("month", "15-10-2025") == Decimal("110.00")
+    assert system.revenue("month", "01-10-2025") == Decimal("110.00")
+    assert system.revenue("month", "31-10-2025") == Decimal("110.00")
 
 
 def test_revenue_for_a_month_handles_december_and_leap_years(
@@ -1046,9 +1052,9 @@ def test_revenue_for_a_month_handles_december_and_leap_years(
             "01-03-2024": 3,
         },
     )
-    assert system.revenue("month", "01-12-2024") == 10.00
-    assert system.revenue("month", "10-02-2025") == 20.00
-    assert system.revenue("month", "10-02-2024") == 30.00
+    assert system.revenue("month", "01-12-2024") == Decimal("10.00")
+    assert system.revenue("month", "10-02-2025") == Decimal("20.00")
+    assert system.revenue("month", "10-02-2024") == Decimal("30.00")
 
 
 def test_revenue_includes_the_card_surcharge(
@@ -1057,12 +1063,12 @@ def test_revenue_includes_the_card_surcharge(
     """Revenue is what was charged, so a credit card adds 1.5%."""
     pay(system, big_order, 100.00, "15-10-2025", credit=True)
     pay(system, big_order, 100.00, "15-10-2025")
-    assert system.revenue("day", "15-10-2025") == 201.50
+    assert system.revenue("day", "15-10-2025") == Decimal("201.50")
 
 
 def test_revenue_with_nothing_paid_is_zero(system: NurserySystem) -> None:
     """A quiet period totals $0.00."""
-    assert system.revenue("month", "15-10-2025") == 0.0
+    assert system.revenue("month", "15-10-2025") == Decimal("0.0")
 
 
 def test_revenue_rejects_a_bad_period_or_date(system: NurserySystem) -> None:
@@ -1098,16 +1104,16 @@ def test_an_earlier_receipt_still_shows_the_balance_at_that_time(
     second = pay(system, forty_dollar_order, 20.00, "10-10-2025", True)
     third = pay(system, forty_dollar_order, 10.00, "10-10-2025")
 
-    assert system.receipt_for(first).remaining_on_order == 30.00
-    assert system.receipt_for(second).remaining_on_order == 10.00
-    assert system.receipt_for(third).remaining_on_order == 0.00
+    assert system.receipt_for(first).remaining_on_order == Decimal("30.00")
+    assert system.receipt_for(second).remaining_on_order == Decimal("10.00")
+    assert system.receipt_for(third).remaining_on_order == Decimal("0.00")
     # The order itself now has nothing left, but the first receipt does not.
-    assert forty_dollar_order.remaining_balance == 0.00
+    assert forty_dollar_order.remaining_balance == Decimal("0.00")
 
     credit_receipt = system.receipt_for(second)
-    assert credit_receipt.amount == 20.00
-    assert credit_receipt.surcharge == 0.30
-    assert credit_receipt.amount_charged == 20.30
+    assert credit_receipt.amount == Decimal("20.00")
+    assert credit_receipt.surcharge == Decimal("0.30")
+    assert credit_receipt.amount_charged == Decimal("20.30")
     assert credit_receipt.payment_type == "credit card"
     assert credit_receipt.order_number == forty_dollar_order.order_number
 
@@ -1123,8 +1129,10 @@ def test_receipts_follow_the_payment_date_not_the_order_entered(
         entered_second,
         entered_first,
     ]
-    assert system.receipt_for(entered_second).remaining_on_order == 20.00
-    assert system.receipt_for(entered_first).remaining_on_order == 10.00
+    second_receipt = system.receipt_for(entered_second)
+    first_receipt = system.receipt_for(entered_first)
+    assert second_receipt.remaining_on_order == Decimal("20.00")
+    assert first_receipt.remaining_on_order == Decimal("10.00")
 
 
 def test_most_and_least_ordered_leave_out_cancelled_orders(
@@ -1177,11 +1185,11 @@ def test_customer_activity_lists_each_event_in_date_order(
 
     records = system.customer_activity(avril)
     assert [(r.happened_on, r.action) for r in records] == [
-        ("01-10-2025", "placed"),
-        ("02-10-2025", "placed"),
-        ("03-10-2025", "cancelled"),
-        ("04-10-2025", "paid"),
-        ("05-10-2025", "collected"),
+        (date(2025, 10, 1), "placed"),
+        (date(2025, 10, 2), "placed"),
+        (date(2025, 10, 3), "cancelled"),
+        (date(2025, 10, 4), "paid"),
+        (date(2025, 10, 5), "collected"),
     ]
 
 
@@ -1216,11 +1224,11 @@ def test_plant_price_and_stock_are_updated_separately(
     system.add_plant(sold_out)
 
     system.update_plant_price(sold_out, 7.50)
-    assert sold_out.plant_price == 7.50
+    assert sold_out.plant_price == Decimal("7.50")
     assert sold_out.plant_stock == 0
 
     with pytest.raises(ValueError, match="greater than 0"):
         system.update_plant_stock(sold_out, 0)
     system.update_plant_stock(sold_out, 12)
     assert sold_out.plant_stock == 12
-    assert sold_out.plant_price == 7.50
+    assert sold_out.plant_price == Decimal("7.50")

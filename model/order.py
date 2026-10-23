@@ -1,18 +1,30 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal, Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .customer import Customer
+from .dates import DateInput, format_date, parse_date
 from .exceptions import (
     OrderCannotBeCancelledError,
     OrderCannotBeCollectedError,
     OrderNotPayableError,
     OverpaymentError,
 )
+from .money import MoneyInput, to_money
 from .order_item import OrderItem
 from .plant import Plant
 
@@ -36,10 +48,27 @@ class Order(Base):
     __table_args__ = (
         CheckConstraint("order_total > 0", name="ck_orders_total"),
         CheckConstraint("amount_paid >= 0", name="ck_orders_amount_paid"),
+        # A customer can never have paid more than the order came to.
+        CheckConstraint(
+            "amount_paid <= order_total", name="ck_orders_not_overpaid"
+        ),
         CheckConstraint(
             "order_status IN ('pending', 'collected', 'cancelled')",
             name="ck_orders_status",
         ),
+        # A date is recorded exactly when the order reached that status.
+        CheckConstraint(
+            "(order_status = 'collected') = (collected_date IS NOT NULL)",
+            name="ck_orders_collected_date",
+        ),
+        CheckConstraint(
+            "(order_status = 'cancelled') = (cancelled_date IS NOT NULL)",
+            name="ck_orders_cancelled_date",
+        ),
+        # Finding a customer's orders, and the pending orders that are old
+        # enough to chase.
+        Index("ix_orders_customer_id", "customer_id"),
+        Index("ix_orders_status_order_date", "order_status", "order_date"),
     )
 
     _order_id: Mapped[uuid.UUID] = mapped_column(
@@ -51,23 +80,31 @@ class Order(Base):
         ForeignKey("customers.cust_id"),
         nullable=False,
     )
-    _order_date: Mapped[str] = mapped_column(
-        "order_date", String(10), nullable=False
+    _order_date: Mapped[date] = mapped_column(
+        "order_date", Date, nullable=False
+    )
+    # When the row was made. Orders placed on the same day are told apart, and
+    # kept in the order they were placed, by this.
+    _created_at: Mapped[datetime] = mapped_column(
+        "created_at", DateTime, nullable=False
     )
     _order_status: Mapped[str] = mapped_column(
         "order_status", String(20), nullable=False, default="pending"
     )
-    _order_total: Mapped[float] = mapped_column(
+    _order_total: Mapped[Decimal] = mapped_column(
         "order_total", Numeric(10, 2), nullable=False
     )
-    _amount_paid: Mapped[float] = mapped_column(
-        "amount_paid", Numeric(10, 2), nullable=False, default=0
+    _amount_paid: Mapped[Decimal] = mapped_column(
+        "amount_paid",
+        Numeric(10, 2),
+        nullable=False,
+        default=Decimal("0.00"),
     )
-    _collected_date: Mapped[Optional[str]] = mapped_column(
-        "collected_date", String(10), nullable=True
+    _collected_date: Mapped[Optional[date]] = mapped_column(
+        "collected_date", Date, nullable=True
     )
-    _cancelled_date: Mapped[Optional[str]] = mapped_column(
-        "cancelled_date", String(10), nullable=True
+    _cancelled_date: Mapped[Optional[date]] = mapped_column(
+        "cancelled_date", Date, nullable=True
     )
     _customer: Mapped[Customer] = relationship()
     _items: Mapped[list[OrderItem]] = relationship(
@@ -79,7 +116,7 @@ class Order(Base):
         self,
         customer: Customer,
         items: list[tuple[Plant, int]],
-        order_date: Optional[str] = None,
+        order_date: Optional[DateInput] = None,
     ) -> None:
         """
         Initialise a new Order object
@@ -87,8 +124,8 @@ class Order(Base):
         :param customer (Customer): The Customer associated with the order
         :param items (list[tuple[Plant, int]]): A list of (plant, quantity)
             pairs, at least one, with no plant repeated
-        :param order_date (Optional[str]): Optional order date in DD-MM-YYYY
-            format, defaults to today
+        :param order_date (Optional[DateInput]): Optional order date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises ValueError: If there are no items, a plant is repeated, a
             quantity is not greater than 0, or the order date is invalid
         :raises InsufficientStockError: If there is not enough stock for an
@@ -112,25 +149,24 @@ class Order(Base):
 
         # UUID keeps order IDs unique without a running counter.
         self._order_id = uuid.uuid4()
-        # Date defaults to today if none is supplied, then is validated as a
-        # real calendar date.
-        if order_date is None:
-            order_date = date.today().strftime("%d-%m-%Y")
-        self._order_date = self.__validate_order_date(order_date)
+        # Date defaults to today if none is supplied, and text must be a real
+        # calendar date.
+        self._order_date = parse_date(order_date, "Order date")
+        self._created_at = datetime.now()
         # New orders always start as pending. Status is not settable directly
         # after this.
         self._order_status = "pending"
         self._customer = customer
-        self._amount_paid = 0.0
+        self._amount_paid = Decimal("0.00")
         for plant, quantity in items:
             # Append to the mapped collection so each line is saved with the
             # order. Replacing the collection with a plain list would drop that
             # link.
             self._items.append(OrderItem(plant, quantity))
 
-        items_subtotal = 0.0
-        for item in self._items:
-            items_subtotal += item.item_cost
+        items_subtotal = sum(
+            (item.item_cost for item in self._items), Decimal("0.00")
+        )
         # Item bulk discounts are already in each line. The customer discount
         # comes off the order as a whole, using whichever rate the customer
         # subclass supplies.
@@ -167,24 +203,33 @@ class Order(Base):
         return str(self._order_id).replace("-", "")[:8].upper()
 
     @property
-    def order_date(self) -> str:
+    def order_date(self) -> date:
         """
         Get date of the order
 
-        :return (str): Date of the order
+        :return (date): Date of the order
         """
         return self._order_date
 
     @order_date.setter
-    def order_date(self, value: str) -> None:
+    def order_date(self, value: DateInput) -> None:
         """
         Update the order date
 
-        :param value (str): New date in DD-MM-YYYY format
-        :raises ValueError: If the date is not a valid calendar date in
+        :param value (DateInput): New date, or DD-MM-YYYY text
+        :raises ValueError: If the text is not a valid calendar date in
             DD-MM-YYYY format
         """
-        self._order_date = self.__validate_order_date(value)
+        self._order_date = parse_date(value, "Order date")
+
+    @property
+    def created_at(self) -> datetime:
+        """
+        Get when the order was made
+
+        :return (datetime): When the order was made
+        """
+        return self._created_at
 
     @property
     def order_status(self) -> OrderStatus:
@@ -216,89 +261,66 @@ class Order(Base):
         return list(self._items)
 
     @property
-    def order_total(self) -> float:
+    def order_total(self) -> Decimal:
         """
         Get the total price of the order after item and customer discounts
 
-        :return (float): The total price of the order after item and customer
-            discounts
+        :return (Decimal): The total price of the order after item and
+            customer discounts
         """
-        return float(self._order_total)
+        return Decimal(self._order_total)
 
     @property
-    def amount_paid(self) -> float:
+    def amount_paid(self) -> Decimal:
         """
         Get how much has been paid toward this order
 
-        :return (float): How much has been paid toward this order
+        :return (Decimal): How much has been paid toward this order
         """
-        return float(self._amount_paid)
+        return Decimal(self._amount_paid)
 
     @property
-    def remaining_balance(self) -> float:
+    def remaining_balance(self) -> Decimal:
         """
         Get how much is still owed on this order
 
-        :return (float): How much is still owed on this order
+        :return (Decimal): How much is still owed on this order
         """
         # A cancelled order has already had its total taken back off the
         # customer.
         if self._order_status == "cancelled":
-            return 0.0
-        return round(self.order_total - self.amount_paid, 2)
+            return Decimal("0.00")
+        return self.order_total - self.amount_paid
 
     @property
-    def collected_date(self) -> Optional[str]:
+    def collected_date(self) -> Optional[date]:
         """
         Get the date the order was collected
 
-        :return (Optional[str]): The collection date, or None if it has not
+        :return (Optional[date]): The collection date, or None if it has not
             been collected
         """
         return self._collected_date
 
     @property
-    def cancelled_date(self) -> Optional[str]:
+    def cancelled_date(self) -> Optional[date]:
         """
         Get the date the order was cancelled
 
-        :return (Optional[str]): The cancellation date, or None if it has not
+        :return (Optional[date]): The cancellation date, or None if it has not
             been cancelled
         """
         return self._cancelled_date
 
     # ---------- Methods ----------
 
-    def __validate_order_date(self, order_date: str) -> str:
-        """
-        Validate that the order date is a real calendar date in DD-MM-YYYY
-        format
-
-        :param order_date (str): Date string to validate
-        :return (str): The validated date string
-        :raises ValueError: If the date is not a valid calendar date in
-            DD-MM-YYYY format
-        """
-        # strptime is used so the format and the calendar date are both
-        # checked. That rejects values like 32-13-2026, not just strings that
-        # look the wrong shape.
-        if not isinstance(order_date, str):
-            raise ValueError(
-                "Order date must be a valid date in DD-MM-YYYY format")
-        try:
-            datetime.strptime(order_date, "%d-%m-%Y")
-        except ValueError:
-            raise ValueError(
-                "Order date must be a valid date in DD-MM-YYYY format")
-        return order_date
-
-    def record_payment(self, amount: float) -> None:
+    def record_payment(self, amount: MoneyInput) -> None:
         """
         Record an amount paid toward this order and take it off the customer
         balance
 
-        :param amount (float): Amount to apply to this order, must be greater
-            than 0 and not more than remaining
+        :param amount (MoneyInput): Amount to apply to this order, must be
+            greater than 0 and not more than remaining
         :raises OrderNotPayableError: If the order has been cancelled, or is
             already paid in full
         :raises OverpaymentError: If the amount is more than what is still
@@ -315,14 +337,15 @@ class Order(Base):
         if self.remaining_balance <= 0:
             raise OrderNotPayableError(
                 "This order has already been paid in full")
-        if amount <= 0:
+        paid = to_money(amount, "Payment amount")
+        if paid <= 0:
             raise ValueError("Payment amount must be greater than 0")
-        if amount > self.remaining_balance:
+        if paid > self.remaining_balance:
             raise OverpaymentError(
                 "Payment cannot be more than what is still owed on this "
                 f"order (${self.remaining_balance:.2f})")
-        self._amount_paid = round(self.amount_paid + amount, 2)
-        self.customer.reduce_balance(amount)
+        self._amount_paid = self.amount_paid + paid
+        self.customer.reduce_balance(paid)
 
     def is_uncollected_too_long(self, today: Optional[date] = None) -> bool:
         """
@@ -335,16 +358,17 @@ class Order(Base):
         """
         if self._order_status != "pending":
             return False
-        placed = datetime.strptime(self.order_date, "%d-%m-%Y").date()
         current = today or date.today()
-        return (current - placed).days >= UNCOLLECTED_AFTER_DAYS
+        return (current - self.order_date).days >= UNCOLLECTED_AFTER_DAYS
 
-    def collect_order(self, collected_date: Optional[str] = None) -> None:
+    def collect_order(
+        self, collected_date: Optional[DateInput] = None
+    ) -> None:
         """
         Update order status to collected
 
-        :param collected_date (Optional[str]): Collection date in DD-MM-YYYY
-            format, defaults to today
+        :param collected_date (Optional[DateInput]): Collection date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises OrderCannotBeCollectedError: If the order has already been
             collected or cancelled, or the customer is not allowed to collect
             it yet
@@ -364,18 +388,18 @@ class Order(Base):
                 "Community customers must pay an order in full "
                 "before it can be collected"
             )
-        if collected_date is None:
-            collected_date = date.today().strftime("%d-%m-%Y")
-        self._collected_date = self.__validate_order_date(collected_date)
+        self._collected_date = parse_date(collected_date, "Collection date")
         self._order_status = "collected"
 
-    def cancel_order(self, cancelled_date: Optional[str] = None) -> None:
+    def cancel_order(
+        self, cancelled_date: Optional[DateInput] = None
+    ) -> None:
         """
         Update order status to cancelled, restore stock, and take the total off
         the customer balance
 
-        :param cancelled_date (Optional[str]): Cancellation date in DD-MM-YYYY
-            format, defaults to today
+        :param cancelled_date (Optional[DateInput]): Cancellation date, as a
+            date or DD-MM-YYYY text, defaults to today
         :raises OrderCannotBeCancelledError: If the order has already been
             collected or cancelled, or anything has been paid toward it
         :raises ValueError: If the cancellation date is invalid
@@ -394,9 +418,7 @@ class Order(Base):
         for item in self._items:
             item.restore_stock()
         self.customer.reduce_balance(self.order_total)
-        if cancelled_date is None:
-            cancelled_date = date.today().strftime("%d-%m-%Y")
-        self._cancelled_date = self.__validate_order_date(cancelled_date)
+        self._cancelled_date = parse_date(cancelled_date, "Cancellation date")
         self._order_status = "cancelled"
 
     def __str__(self) -> str:
@@ -411,7 +433,7 @@ class Order(Base):
             " Items: [{}], Order Total: {}, Amount Paid: {}, "
             "Remaining Balance: {}"
             .format(
-                self.order_id, self.order_date,
+                self.order_id, format_date(self.order_date),
                 self.order_status, self.customer.cust_name,
                 item_text, self.order_total,
                 self.amount_paid, self.remaining_balance,

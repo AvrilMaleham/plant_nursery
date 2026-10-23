@@ -54,6 +54,7 @@ class User(Base):
         Uuid(as_uuid=True),
         ForeignKey("customers.cust_id"),
         nullable=True,
+        index=True,
     )
     _customer: Mapped[Optional[Customer]] = relationship()
 

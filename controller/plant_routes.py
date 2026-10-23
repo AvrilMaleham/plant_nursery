@@ -1,6 +1,7 @@
 """Plant search, detail, and the team's catalog changes."""
 
 import uuid
+from decimal import Decimal
 from pathlib import Path
 
 from flask import flash, g, redirect, render_template, request, url_for
@@ -15,7 +16,7 @@ from controller.blueprint import (
     system,
 )
 from model.exceptions import NotAuthorisedError
-from controller.parsing import read_float, read_int, required_text, text
+from controller.parsing import read_int, read_money, required_text, text
 from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
 
 IMAGE_DIR = Path(__file__).resolve().parents[1] / "view" / "static" / "images"
@@ -66,11 +67,11 @@ def search_filters() -> dict[str, object]:
     min_price = None
     max_price = None
     if band == "under-10":
-        max_price = 9.99
+        max_price = Decimal("9.99")
     elif band == "10-30":
-        min_price, max_price = 10.0, 30.0
+        min_price, max_price = Decimal("10.00"), Decimal("30.00")
     elif band == "over-30":
-        min_price = 30.01
+        min_price = Decimal("30.01")
     else:
         band = ""
     plant_type = text(request.args.get("plant_type")) or None
@@ -144,7 +145,7 @@ def add_plant() -> str:
     try:
         filename = save_photo(request.files.get("photo"))
         name = required_text(request.form.get("plant_name"), "Plant name")
-        price = read_float(request.form.get("price"), "Price")
+        price = read_money(request.form.get("price"), "Price")
         stock = read_int(request.form.get("stock"), "Stock")
         plant_type = text(request.form.get("plant_type"))
         if plant_type == PotPlant.TYPE_NAME:
@@ -212,7 +213,7 @@ def update_plant_price(plant_id: uuid.UUID) -> str:
     try:
         plant = system().find_plant(plant_id)
         system().update_plant_price(
-            plant, read_float(request.form.get("price"), "Price")
+            plant, read_money(request.form.get("price"), "Price")
         )
     except RULE_ERRORS as error:
         return explain(error)
