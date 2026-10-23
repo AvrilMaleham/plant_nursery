@@ -49,6 +49,7 @@ class Plant(Base):
             "image_filename <> ''",
             name="ck_plants_image",
         ),
+        CheckConstraint("btrim(plant_name) <> ''", name="ck_plants_name"),
     )
 
     # Single-table inheritance: every plant type is one row in plants.
@@ -122,9 +123,13 @@ class Plant(Base):
         :param plant_stock (int): Stock on hand for this plant, must be greater
             than 0
         :param image_filename (str): File name of the plant photo
-        :raises ValueError: If price is not greater than 0, stock is not
-            greater than 0, or the photo file name is missing
+        :raises ValueError: If the name is blank, price is not greater than 0,
+            stock is not greater than 0, or the photo file name is missing
         """
+        # A name of only spaces is as good as no name, so it is refused here
+        # and the stored name never has stray spaces around it.
+        if not isinstance(plant_name, str) or not plant_name.strip():
+            raise ValueError("Plant name is required")
         if not image_filename:
             raise ValueError("A plant photo is required")
 
@@ -133,7 +138,7 @@ class Plant(Base):
         # counter. Two plants can share a name (different batches, different
         # prices) and still be told apart.
         self._plant_id = uuid.uuid4()
-        self._plant_name = plant_name
+        self._plant_name = plant_name.strip()
         self._image_filename = image_filename
         # Price and stock go through their setters, so creation uses the same
         # checks as an update.

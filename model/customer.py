@@ -23,6 +23,7 @@ class Customer(Base):
     __tablename__ = "customers"
     __table_args__ = (
         CheckConstraint("balance >= 0", name="ck_customers_balance"),
+        CheckConstraint("btrim(cust_name) <> ''", name="ck_customers_name"),
         CheckConstraint(
             "customer_type IN ('staff', 'student', 'community')",
             name="ck_customers_type",
@@ -92,9 +93,10 @@ class Customer(Base):
             unique, different customers can have the same name)
         :param cust_email (str): Contact email address of the customer
         :param cust_phone (str): Contact phone number of the customer
-        :raises ValueError: If there is not at least one of cust_email or
-            cust_phone
+        :raises ValueError: If the name is blank, or there is not at least one
+            of cust_email or cust_phone
         """
+        cust_name = self.__clean_name(cust_name)
         # At least one contact method is required so the nursery can still
         # reach the customer.
         if not cust_email and not cust_phone:
@@ -157,9 +159,23 @@ class Customer(Base):
         """
         Update the customer name
 
-        :param value (str): New customer name
+        :param value (str): New customer name, not blank
+        :raises ValueError: If the name is blank
         """
-        self._cust_name = value
+        self._cust_name = self.__clean_name(value)
+
+    @staticmethod
+    def __clean_name(value: str) -> str:
+        """
+        Check a customer name is not blank and remove stray spaces around it
+
+        :param value (str): The name as given
+        :return (str): The name without leading or trailing spaces
+        :raises ValueError: If the name is missing or only spaces
+        """
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Customer name is required")
+        return value.strip()
 
     @property
     def cust_email(self) -> Optional[str]:

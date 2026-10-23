@@ -15,7 +15,7 @@ from controller.blueprint import (
     system,
 )
 from model.exceptions import NotAuthorisedError
-from controller.parsing import read_float, read_int, text
+from controller.parsing import read_float, read_int, required_text, text
 from model.plant import Perennial, PotPlant, TreeAndShrub, VegetableSeedling
 
 IMAGE_DIR = Path(__file__).resolve().parents[1] / "view" / "static" / "images"
@@ -143,7 +143,7 @@ def add_plant() -> str:
     filename = ""
     try:
         filename = save_photo(request.files.get("photo"))
-        name = text(request.form.get("plant_name"))
+        name = required_text(request.form.get("plant_name"), "Plant name")
         price = read_float(request.form.get("price"), "Price")
         stock = read_int(request.form.get("stock"), "Stock")
         plant_type = text(request.form.get("plant_type"))

@@ -95,7 +95,7 @@ def add_customer() -> str:
         )
 
     try:
-        name = text(request.form.get("cust_name"))
+        name = required_text(request.form.get("cust_name"), "Name")
         email = text(request.form.get("cust_email"))
         phone = text(request.form.get("cust_phone"))
         customer_type = text(request.form.get("customer_type"))

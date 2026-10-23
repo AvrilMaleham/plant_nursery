@@ -123,14 +123,27 @@ def place_order() -> str:
         items = []
         for plant in system().search_plants():
             raw = text(request.form.get(f"qty-{plant.plant_id}"))
+            # A blank box means this plant is not part of the order.
             if not raw:
                 continue
             try:
                 quantity = int(raw)
             except ValueError:
-                raise ValueError("Quantity must be a whole number") from None
-            if quantity > 0:
-                items.append((plant, quantity))
+                raise ValueError(
+                    f"Quantity for {plant.plant_name} must be a whole "
+                    "number"
+                ) from None
+            # Anything typed has to be a real quantity. Dropping a 0 or a
+            # negative number quietly would leave the person thinking they
+            # had ordered it.
+            if quantity < 1:
+                raise ValueError(
+                    f"Quantity for {plant.plant_name} must be at least 1. "
+                    "Leave the box empty if you do not want it"
+                )
+            items.append((plant, quantity))
+        if not items:
+            raise ValueError("Enter a quantity for at least one plant")
         order = system().place_order(customer, items)
     except RULE_ERRORS as error:
         g.db.rollback()

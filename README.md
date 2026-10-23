@@ -204,7 +204,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 
 - No new categories will be added at this time, the four types are trees and shrubs, perennials, pot plants, and vegetable seedlings.
 - Same plant name does not mean same price, two batches of the same plant can come in at different prices, which is why each plant has its own ID.
-- A name will always be given and data types will be correct for now (no validation on inputs beyond what the type hints describe).
+- A plant or customer name has to contain something other than spaces. The model refuses a blank name, and stores a name without the spaces around it. The add forms report it as "Plant name is required" or "Name is required", and the table has a matching check. Beyond that, a name is free text.
 - IDs are generated using UUID for simplicity.
 - Only stock and price can be changed once a `Plant` object is created, name and type are read only.
 - Stock cannot be set to 0. A plant must be created and restocked with a value greater than 0. Stock can only reach exactly zero when it is reduced through an order.
@@ -214,7 +214,8 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 ### Customer
 
 - IDs are generated using UUID for simplicity.
-- Customer name, email, and phone can be updated after creation via setters. ID stays read only. At least one of email or phone must remain.
+- Customer name, email, and phone can be updated after creation via setters. ID stays read only. The name cannot be made blank, and at least one of email or phone must remain.
+- On the order form, a blank quantity box means "not ordering this plant". Anything typed must be a whole number of at least 1. A 0, a negative number, or a decimal is refused with a message that names the plant, and the whole order is refused, rather than that line being dropped without telling anyone. Submitting with every box blank says to enter a quantity for at least one plant.
 - Staff and students are blocked when the new order would take what they owe over $100, as Brent's final notes say, not only when they already owe more than $100. `UniversityCustomer.can_place_order()` compares `balance + order_total` with `CREDIT_LIMIT`. Owing exactly $100 after the order is allowed, because the limit is "over $100". A customer who already owes exactly $100 is blocked from any further order, since any order total is more than $0.
 
 ### Order
@@ -323,7 +324,7 @@ The `plant_stock >= 0` and `balance >= 0` checks on the tables stay as a last re
 - Plants, customers, orders, order items, payments, and users are stored in PostgreSQL through SQLAlchemy. The three class hierarchies use single-table inheritance, described above. `seed.py` loads a sample that exercises the rules from all three sets of notes.
 - `model/`, `view/`, and `controller/` are the three layers. The templates do not apply the business rules, and the model does not build HTML.
 - `LoginFailedError` and `NotAuthorisedError` are the two new custom exceptions. The controllers flash those, and the original four, with the message the model raised.
-- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden.
+- `tests/test_business_rules.py` holds the unit tests for discounts, the credit limit, the pending-order rule, collection, cancellation, stock, payments, the seven-day flag, invoices, receipts, and password hashing. `tests/test_workflows.py` holds three integration tests: a customer searching, ordering, and paying; the team selling at the counter and collecting; and an overdue order being flagged, reported, and then cleared. `tests/test_concurrency.py` holds the tests for two people working at once: the last plant cannot be sold twice, overlapping orders both reduce stock, one community customer cannot get two pending orders, two payments cannot overpay an order, the database stock check is reported as a stock problem, and a failed final save is reported instead of hidden. `tests/test_validation.py` holds the test that the add-plant, add-customer, and order forms refuse blank names and zero, negative, or non-whole quantities with a reason, and change nothing. The unit tests also cover blank names on the model.
 
 ## Generative AI
 

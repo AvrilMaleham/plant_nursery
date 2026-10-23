@@ -60,6 +60,31 @@ def rose(stock: int = 25) -> TreeAndShrub:
     return TreeAndShrub("Rose", 15.99, stock, "rose.png")
 
 
+@pytest.mark.parametrize("name", ["", " ", "   \t"])
+def test_plant_name_cannot_be_blank(name: str) -> None:
+    """A plant needs a real name, not an empty one or only spaces."""
+    with pytest.raises(ValueError, match="Plant name is required"):
+        TreeAndShrub(name, 15.99, 5, "rose.png")
+
+
+@pytest.mark.parametrize("name", ["", " ", "   \t"])
+def test_customer_name_cannot_be_blank(name: str) -> None:
+    """A customer needs a real name, at creation and when it is changed."""
+    with pytest.raises(ValueError, match="Customer name is required"):
+        StaffCustomer(name, cust_email="avril@email.com")
+
+    customer = staff_customer()
+    with pytest.raises(ValueError, match="Customer name is required"):
+        customer.cust_name = name
+    assert customer.cust_name == "Avril"
+
+
+def test_names_lose_the_spaces_around_them() -> None:
+    """Spaces typed before or after a name are not stored."""
+    assert TreeAndShrub("  Rose ", 15.99, 5, "rose.png").plant_name == "Rose"
+    assert StaffCustomer(" Avril ", cust_email="a@b.c").cust_name == "Avril"
+
+
 def test_staff_discount_is_one_percent() -> None:
     """Staff get 1% off the order total."""
     assert staff_customer().apply_discount(100.00) == 99.00
